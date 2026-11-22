@@ -343,7 +343,10 @@ public class GodotApp extends GodotActivity {
 		root.addView(spinner, spinnerLp);
 
 		TextView title = new TextView(this);
-		title.setText("이미지 인덱스 캐시를 다시 만드는 중입니다");
+		boolean isKo = Locale.getDefault().getLanguage().startsWith("ko");
+		title.setText(isKo
+				? "이미지 인덱스 캐시를 다시 만드는 중입니다"
+				: "Rebuilding the image index cache");
 		title.setTextColor(0xFFFFFFFF);
 		title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
 		title.setGravity(Gravity.CENTER);
@@ -354,11 +357,15 @@ public class GodotApp extends GodotActivity {
 		root.addView(title, titleLp);
 
 		TextView desc = new TextView(this);
-		desc.setText(
-				"게임 업데이트가 감지되어 모바일용 텍스처 캐시를\n"
+		desc.setText(isKo
+				? "게임 업데이트가 감지되어 모바일용 텍스처 캐시를\n"
 				+ "새 빌드 기준으로 재생성합니다.\n"
 				+ "첫 실행은 30~60초 소요되며 다음부터는 정상 속도입니다.\n\n"
-				+ "세이브 / 진행도 / 로그인 정보는 보존됩니다.");
+				+ "세이브 / 진행도 / 로그인 정보는 보존됩니다."
+				: "A game update was detected, so the mobile texture cache\n"
+				+ "is being rebuilt for the new version.\n"
+				+ "The first launch takes 30 to 60 seconds; after that, startup is back to normal.\n\n"
+				+ "Your saves, progress, and login info are kept.");
 		desc.setTextColor(0xFFCCCCCC);
 		desc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
 		desc.setGravity(Gravity.CENTER);

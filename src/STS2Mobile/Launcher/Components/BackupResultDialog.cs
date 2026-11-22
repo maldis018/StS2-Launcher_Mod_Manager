@@ -45,14 +45,14 @@ public class BackupResultDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", (int)(14 * scale));
         dialogBox.AddChild(vbox);
 
-        var title = new StyledLabel(success ? "백업 완료" : "백업 실패", scale, fontSize: 20);
+        var title = new StyledLabel(success ? Loc.Tr("백업 완료", "Backup complete") : Loc.Tr("백업 실패", "Backup failed"), scale, fontSize: 20);
         vbox.AddChild(title);
 
         if (success)
         {
-            AddRow(vbox, "백업된 파일", $"{fileCount}개", scale);
+            AddRow(vbox, Loc.Tr("백업된 파일", "Files backed up"), Loc.Tr($"{fileCount}개", Loc.Files(fileCount)), scale);
             if (totalBytes > 0)
-                AddRow(vbox, "총 크기", LauncherModel.FormatSize(totalBytes), scale);
+                AddRow(vbox, Loc.Tr("총 크기", "Total size"), LauncherModel.FormatSize(totalBytes), scale);
             if (!string.IsNullOrEmpty(backupPath))
             {
                 // Full path is long; show it on its own wrapped line so the
@@ -66,7 +66,7 @@ public class BackupResultDialog : ColorRect
                 pathLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
                 pathLabel.CustomMinimumSize = new Vector2((int)(420 * scale), 0);
                 pathLabel.Modulate = new Color(1, 1, 1, 0.7f);
-                vbox.AddChild(MakeKeyLabel("저장 위치", scale));
+                vbox.AddChild(MakeKeyLabel(Loc.Tr("저장 위치", "Saved to"), scale));
                 vbox.AddChild(pathLabel);
             }
         }
@@ -74,7 +74,7 @@ public class BackupResultDialog : ColorRect
         {
             var reason = new StyledLabel(
                 string.IsNullOrEmpty(failureReason)
-                    ? "백업 중 오류가 발생했습니다."
+                    ? Loc.Tr("백업 중 오류가 발생했습니다.", "An error occurred during the backup.")
                     : failureReason,
                 scale,
                 fontSize: 14
@@ -89,7 +89,7 @@ public class BackupResultDialog : ColorRect
         buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
         vbox.AddChild(buttonRow);
 
-        var okButton = new StyledButton("확인", scale, fontSize: 14, height: 44);
+        var okButton = new StyledButton(Loc.Tr("확인", "OK"), scale, fontSize: 14, height: 44);
         okButton.CustomMinimumSize = new Vector2((int)(140 * scale), okButton.CustomMinimumSize.Y);
         okButton.Pressed += () =>
         {

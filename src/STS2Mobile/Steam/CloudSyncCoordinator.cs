@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Saves;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Steam;
 
@@ -200,7 +201,7 @@ public static class CloudSyncCoordinator
     // previous "returns instantly, always says complete" lie.
     // progress (issue #64): forwarded to EndSaveBatch — per-file upload
     // progress from the batch loop, reported on the CloudSaveWriter thread.
-    // onPhase (issue #81): 진행 단계 문구를 UI 로 알린다("클라우드 정리 중"/"클라우드 반영 중").
+    // onPhase (issue #81): 진행 단계 문구를 UI 로 알린다(Loc.Tr("클라우드 정리 중", "Cleaning up cloud")/Loc.Tr("클라우드 반영 중", "Uploading to cloud")).
     // progress 의 (done,total) 과 조합해 프리징 오해 없이 세부 진행을 보여준다. 기본 null 이라
     // 기존 호출부(ProfileCopyFlow)는 영향 없음.
     public static async Task<CloudBatchOutcome> ManualPushAllAsync(
@@ -247,11 +248,11 @@ public static class CloudSyncCoordinator
         }
         if (trimmed > 0)
         {
-            onPhase?.Invoke("클라우드 정리 중");
+            onPhase?.Invoke(Loc.Tr("클라우드 정리 중", "Cleaning up cloud"));
             DrainQueueWithProgress(cloudStore, trimmed, progress, capMs: 900_000);
         }
 
-        onPhase?.Invoke("클라우드 반영 중");
+        onPhase?.Invoke(Loc.Tr("클라우드 반영 중", "Uploading to cloud"));
         cloudStore.BeginSaveBatch();
         int count = 0;
         int deletedCloud = 0;
@@ -377,11 +378,11 @@ public static class CloudSyncCoordinator
         }
         if (trimmed > 0)
         {
-            onPhase?.Invoke("클라우드 정리 중");
+            onPhase?.Invoke(Loc.Tr("클라우드 정리 중", "Cleaning up cloud"));
             DrainQueueWithProgress(cloudStore, trimmed, progress, capMs: 900_000);
         }
 
-        onPhase?.Invoke("클라우드 받는 중");
+        onPhase?.Invoke(Loc.Tr("클라우드 받는 중", "Downloading from cloud"));
         var paths = GetSaveFilePaths(cloudStore);
         PatchHelper.Log($"[Cloud] Pull: starting ({paths.Count} files)");
 

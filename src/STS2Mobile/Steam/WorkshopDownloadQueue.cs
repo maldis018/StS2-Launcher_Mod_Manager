@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using STS2Mobile.Modding;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Steam;
 
@@ -190,9 +191,9 @@ public class WorkshopDownloadQueue
                         entry.State = WorkshopDownloadState.Failed;
                         entry.ModId = result.ModId;
                         entry.Error =
-                            result.Conflict ? "이미 수동 설치된 모드와 충돌(덮어쓰지 않음)"
-                            : result.NoManifest ? "모드 매니페스트 없음"
-                            : (result.Error ?? "다운로드 실패");
+                            result.Conflict ? Loc.Tr("이미 수동 설치된 모드와 충돌(덮어쓰지 않음)", "Conflicts with a manually installed mod (left untouched)")
+                            : result.NoManifest ? Loc.Tr("모드 매니페스트 없음", "Mod manifest not found")
+                            : (result.Error ?? Loc.Tr("다운로드 실패", "Download failed"));
                     }
                 }
             }
@@ -201,7 +202,7 @@ public class WorkshopDownloadQueue
                 lock (_gate)
                 {
                     entry.State = WorkshopDownloadState.Failed;
-                    entry.Error = "취소됨";
+                    entry.Error = Loc.Tr("취소됨", "Canceled");
                 }
             }
             catch (Exception ex)

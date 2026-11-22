@@ -26,7 +26,7 @@ public class LauncherController
 
     // Issue #45: OnCheckGameUpdatePressed 의 picked != current 분기 통과 시 true
     // 로 마킹, DownloadCompleted 콜백에서 소비. true 였다면 NeedsRestartAfterBranchSwitch
-    // set → Play 버튼이 "앱 재시작 필요" 로 분기됨.
+    // set → Play 버튼이 Loc.Tr("앱 재시작 필요", "App restart required") 로 분기됨.
     private bool _pendingBranchSwitch;
 
     // Reentrancy guard shared by every handler that touches local saves or
@@ -236,7 +236,11 @@ public class LauncherController
                 }
                 _view.SetStatus(
                     _model.SavedTokenExpiringSoon
-                        ? $"Welcome back, {_model.AccountName} (Steam 로그인 곧 만료 — 재로그인 권장)"
+                        ? $"Welcome back, {_model.AccountName} "
+                            + Loc.Tr(
+                                "(Steam 로그인 곧 만료 — 재로그인 권장)",
+                                "(Steam login expires soon; consider logging in again)"
+                            )
                         : $"Welcome back, {_model.AccountName}"
                 );
                 var text = ResolveLaunchButtonText();
@@ -862,12 +866,20 @@ public class LauncherController
     private void ShowAtlasWipeConfirm()
     {
         _view.ShowConfirmation(
-            "이미지 인덱스 캐시 정리\n\n"
-                + "포션 / 카드 / 유물 등 이미지가 잘못 표시될 때 사용하세요.\n"
-                + "게임 텍스처 캐시(약 660개) 를 삭제하고 앱을 재시작합니다.\n\n"
-                + "* 다음 실행이 30~60초 더 걸립니다 (재import)\n"
-                + "* 게임을 다시 다운로드하지 않습니다\n"
-                + "* 세이브 / 진행도 / 로그인 정보는 보존됩니다",
+            Loc.Tr(
+                "이미지 인덱스 캐시 정리\n\n"
+                    + "포션 / 카드 / 유물 등 이미지가 잘못 표시될 때 사용하세요.\n"
+                    + "게임 텍스처 캐시(약 660개) 를 삭제하고 앱을 재시작합니다.\n\n"
+                    + "* 다음 실행이 30~60초 더 걸립니다 (재import)\n"
+                    + "* 게임을 다시 다운로드하지 않습니다\n"
+                    + "* 세이브 / 진행도 / 로그인 정보는 보존됩니다",
+                "Clear image index cache\n\n"
+                    + "Use this if potion, card, or relic images look wrong.\n"
+                    + "This deletes the game's texture cache (about 660 files) and restarts the app.\n\n"
+                    + "* The next launch takes 30 to 60 seconds longer (re-import)\n"
+                    + "* The game is not re-downloaded\n"
+                    + "* Saves, progress, and login info are kept"
+            ),
             onConfirmed: () =>
             {
                 try
@@ -934,16 +946,16 @@ public class LauncherController
         {
             AppPaths.RequestStoragePermission();
             _view.ShowConfirmation(
-                "백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.",
+                Loc.Tr("백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again."),
                 onConfirmed: null,
-                okLabel: "확인",
-                cancelLabel: "닫기"
+                okLabel: Loc.Tr("확인", "OK"),
+                cancelLabel: Loc.Tr("닫기", "Close")
             );
             return;
         }
 
         ShowConfirmation(
-            "현재 세이브 데이터를 로컬에 백업할까요?",
+            Loc.Tr("현재 세이브 데이터를 로컬에 백업할까요?", "Back up your current save data to this device?"),
             () =>
             {
                 if (_cloudOpInProgress)
@@ -972,10 +984,10 @@ public class LauncherController
                                 AppPaths.RequestStoragePermission();
                                 _view.AppendLog("Local backup needs storage permission.");
                                 _view.ShowConfirmation(
-                                    "백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.",
+                                    Loc.Tr("백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again."),
                                     onConfirmed: null,
-                                    okLabel: "확인",
-                                    cancelLabel: "닫기"
+                                    okLabel: Loc.Tr("확인", "OK"),
+                                    cancelLabel: Loc.Tr("닫기", "Close")
                                 );
                                 return;
                             }
@@ -1049,7 +1061,7 @@ public class LauncherController
                     // issue #81 — 진행 단계(정리/반영)와 파일 카운트를 상태줄에 표시해
                     // 대량 정리·업로드 중에도 프리징으로 오해받지 않게 한다. onPhase 가 단계
                     // 문구를, progress 가 done/total 을 갱신한다(둘 다 메인스레드로 마샬).
-                    string phase = "클라우드 동기화 중";
+                    string phase = Loc.Tr("클라우드 동기화 중", "Syncing with cloud");
                     var progress = new MainThreadProgress(p =>
                         _runOnMainThread(() => _view.SetStatus($"{phase}... {p.done}/{p.total}"))
                     );
@@ -1114,7 +1126,7 @@ public class LauncherController
                 Task.Run(async () =>
                 {
                     // issue #81 — push 와 동일하게 단계/카운트를 상태줄에 표시(프리징 오해 방지).
-                    string phase = "클라우드 동기화 중";
+                    string phase = Loc.Tr("클라우드 동기화 중", "Syncing with cloud");
                     var progress = new MainThreadProgress(p =>
                         _runOnMainThread(() => _view.SetStatus($"{phase}... {p.done}/{p.total}"))
                     );
@@ -1166,7 +1178,7 @@ public class LauncherController
     }
 
     // issue #59 — boot-time choice for an expired saved token (fast path only,
-    // so exactly once per app launch). "다시 로그인" → login stage; "오프라인으로
+    // so exactly once per app launch). Loc.Tr("다시 로그인", "Log in again") → login stage; "오프라인으로
     // 계속" (or Android Back, which StyledDialog maps to Cancel) → the normal
     // launch stage. No re-prompt this session: auth-gated features show the
     // restart notice instead (BlockIfTokenExpired), since the fast path never
@@ -1174,18 +1186,22 @@ public class LauncherController
     private void ShowTokenExpiredChoice()
     {
         var dialog = new StyledDialog(
-            "Steam 로그인이 만료되었습니다.\n"
-                + "다시 로그인하거나, 클라우드 동기화·창작마당 없이 오프라인으로 계속할 수 있습니다.",
+            Loc.Tr(
+                "Steam 로그인이 만료되었습니다.\n"
+                    + "다시 로그인하거나, 클라우드 동기화·창작마당 없이 오프라인으로 계속할 수 있습니다.",
+                "Your Steam login has expired.\n"
+                    + "You can log in again, or continue offline without cloud sync or Workshop."
+            ),
             LauncherUI.ResolveScale(_view.RootControl),
-            okLabel: "다시 로그인",
-            cancelLabel: "오프라인으로 계속"
+            okLabel: Loc.Tr("다시 로그인", "Log in again"),
+            cancelLabel: Loc.Tr("오프라인으로 계속", "Continue offline")
         );
         dialog.Confirmed += () =>
-            ShowLoginStage("Steam 로그인이 만료되었습니다. 다시 로그인해 주세요.");
+            ShowLoginStage(Loc.Tr("Steam 로그인이 만료되었습니다. 다시 로그인해 주세요.", "Your Steam login has expired. Please log in again."));
         dialog.Cancelled += () =>
         {
             PatchHelper.Log("[Issue59] Expired-token dialog: offline chosen");
-            _view.SetStatus("오프라인 모드 — 클라우드 동기화·창작마당은 재로그인 필요");
+            _view.SetStatus(Loc.Tr("오프라인 모드 — 클라우드 동기화·창작마당은 재로그인 필요", "Offline mode: log in again to use cloud sync and Workshop"));
             ShowLaunchStage(ResolveLaunchButtonText(), showCloudSync: true, showUpdate: true);
         };
         _view.RootControl.AddChild(dialog);
@@ -1203,7 +1219,7 @@ public class LauncherController
         _ = SimpleResultDialog.ShowAsync(
             _view.RootControl,
             false,
-            "Steam 로그인이 만료되어 이 기능을 쓸 수 없습니다.\n앱을 재실행한 뒤 다시 로그인해 주세요.",
+            Loc.Tr("Steam 로그인이 만료되어 이 기능을 쓸 수 없습니다.\n앱을 재실행한 뒤 다시 로그인해 주세요.", "Your Steam login has expired, so this feature isn't available.\nRestart the app and log in again."),
             LauncherUI.ResolveScale(_view.RootControl)
         );
         return true;
@@ -1237,7 +1253,7 @@ public class LauncherController
     private void PromptUpdateRestart()
     {
         _view.Actions.HideAll();
-        _view.SetStatus("업데이트 적용을 위해 재시작합니다...");
+        _view.SetStatus(Loc.Tr("업데이트 적용을 위해 재시작합니다...", "Restarting to apply the update..."));
         try
         {
             var timer = _view.RootControl.GetTree().CreateTimer(2.0);
@@ -1285,11 +1301,11 @@ public class LauncherController
     }
 
     // Issue #45: Play 버튼 라벨은 NeedsRestartAfterBranchSwitch 가 set 이면 한국어
-    // "앱 재시작 필요" 로 강제, 그 외에는 기존 InGameMode 로직 유지.
+    // Loc.Tr("앱 재시작 필요", "App restart required") 로 강제, 그 외에는 기존 InGameMode 로직 유지.
     private string ResolveLaunchButtonText()
     {
         if (_model.NeedsRestartAfterBranchSwitch)
-            return "앱 재시작 필요";
+            return Loc.Tr("앱 재시작 필요", "App restart required");
         return _model.InGameMode ? "PLAY" : "RESTART APP";
     }
 }

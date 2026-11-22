@@ -8,7 +8,7 @@ using STS2Mobile.Steam;
 
 namespace STS2Mobile.Launcher.Components;
 
-// Issue #64: snapshot picker for the "백업 복원" flow. Unlike ProfileCopyPickerDialog
+// Issue #64: snapshot picker for the Loc.Tr("백업 복원", "Restore Backup") flow. Unlike ProfileCopyPickerDialog
 // (bounded at 6 rows), manual backup sets are never auto-evicted (LocalBackupService's
 // FIFO cap only prunes auto/ — see LocalBackupService.cs "Manual sets are never
 // auto-evicted"), so this list can grow without bound. Wrapped in a ScrollContainer
@@ -83,11 +83,11 @@ public class BackupRestorePickerDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", (int)(14 * scale));
         dialogBox.AddChild(vbox);
 
-        var title = new StyledLabel("백업 복원", scale, fontSize: sz.TitleFs);
+        var title = new StyledLabel(Loc.Tr("백업 복원", "Restore Backup"), scale, fontSize: sz.TitleFs);
         vbox.AddChild(title);
 
         var hint = new StyledLabel(
-            "복원할 로컬 백업 시점을 선택하세요. 현재 상태는 복원 직전에 자동 백업됩니다.",
+            Loc.Tr("복원할 로컬 백업 시점을 선택하세요. 현재 상태는 복원 직전에 자동 백업됩니다.", "Choose a local backup to restore. Your current saves are backed up automatically first."),
             scale,
             fontSize: sz.HintFs
         );
@@ -115,7 +115,7 @@ public class BackupRestorePickerDialog : ColorRect
         vbox.AddChild(buttonRow);
 
         var closeButton = new StyledButton(
-            "닫기",
+            Loc.Tr("닫기", "Close"),
             scale,
             fontSize: sz.CloseFs,
             height: sz.CloseHeight
@@ -186,7 +186,7 @@ public class BackupRestorePickerDialog : ColorRect
         textCol.AddChild(titleLabel);
 
         var subtitleLabel = new StyledLabel(
-            $"{snap.FileCount}개 · {LauncherModel.FormatSize(snap.TotalBytes)}",
+            Loc.Tr($"{snap.FileCount}개 · {LauncherModel.FormatSize(snap.TotalBytes)}", $"{Loc.Files(snap.FileCount)} · {LauncherModel.FormatSize(snap.TotalBytes)}"),
             scale,
             fontSize: sz.RowSubtitleFs,
             align: HorizontalAlignment.Left
@@ -233,10 +233,10 @@ public class BackupRestorePickerDialog : ColorRect
     private static (string text, Color color) DescribeKind(string kind) =>
         kind switch
         {
-            "manual" => ("수동", new Color(0.4f, 0.6f, 0.85f)),
-            "auto-match" => ("자동 · 일치", new Color(0.3f, 0.75f, 0.5f)),
-            "auto-conflict-kept" => ("자동 · 충돌(유지)", new Color(0.3f, 0.75f, 0.5f)),
-            "auto-conflict-discarded" => ("자동 · 충돌(폐기)", new Color(0.6f, 0.6f, 0.6f)),
+            "manual" => (Loc.Tr("수동", "Manual"), new Color(0.4f, 0.6f, 0.85f)),
+            "auto-match" => (Loc.Tr("자동 · 일치", "Auto · In sync"), new Color(0.3f, 0.75f, 0.5f)),
+            "auto-conflict-kept" => (Loc.Tr("자동 · 충돌(유지)", "Auto · Conflict (kept)"), new Color(0.3f, 0.75f, 0.5f)),
+            "auto-conflict-discarded" => (Loc.Tr("자동 · 충돌(폐기)", "Auto · Conflict (discarded)"), new Color(0.6f, 0.6f, 0.6f)),
             _ => (kind ?? "—", new Color(0.6f, 0.6f, 0.6f)),
         };
 }

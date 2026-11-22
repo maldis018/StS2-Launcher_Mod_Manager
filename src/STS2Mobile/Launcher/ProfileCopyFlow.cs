@@ -37,7 +37,7 @@ public static class ProfileCopyFlow
         float vpH = LauncherUI.ResolveViewportHeight(parent);
 
         List<SaveProgressSummary> slots;
-        var busy = BusyOverlay.Show(parent, "슬롯 정보 확인 중...", scale);
+        var busy = BusyOverlay.Show(parent, Loc.Tr("슬롯 정보 확인 중...", "Checking save slots..."), scale);
         try
         {
             slots = await CloudSyncDecisions.SummarizeLocalSlotsAsync(localStore);
@@ -46,7 +46,7 @@ public static class ProfileCopyFlow
         {
             PatchHelper.Log($"{Tag} RunCopyAsync: SummarizeLocalSlotsAsync failed: {ex.Message}");
             busy.Dismiss();
-            await SimpleResultDialog.ShowAsync(parent, false, "슬롯 정보를 확인하지 못했습니다.", scale);
+            await SimpleResultDialog.ShowAsync(parent, false, Loc.Tr("슬롯 정보를 확인하지 못했습니다.", "Couldn't read the save slots."), scale);
             return false;
         }
         busy.Dismiss();
@@ -57,7 +57,7 @@ public static class ProfileCopyFlow
             await SimpleResultDialog.ShowAsync(
                 parent,
                 false,
-                "복제할 데이터가 있는 슬롯이 없습니다.",
+                Loc.Tr("복제할 데이터가 있는 슬롯이 없습니다.", "There are no profiles with data to copy."),
                 scale
             );
             return false;
@@ -65,8 +65,8 @@ public static class ProfileCopyFlow
 
         var srcPicker = new ProfileCopyPickerDialog(
             sourceCandidates,
-            "복제할 원본 슬롯",
-            "복제할 프로필을 선택하세요.",
+            Loc.Tr("복제할 원본 슬롯", "Source profile"),
+            Loc.Tr("복제할 프로필을 선택하세요.", "Choose the profile to copy from."),
             scale,
             vpH
         );
@@ -81,8 +81,8 @@ public static class ProfileCopyFlow
             .ToList();
         var dstPicker = new ProfileCopyPickerDialog(
             destCandidates,
-            "덮어쓸 대상 슬롯",
-            "복제본을 덮어쓸 대상 프로필을 선택하세요.",
+            Loc.Tr("덮어쓸 대상 슬롯", "Destination profile"),
+            Loc.Tr("복제본을 덮어쓸 대상 프로필을 선택하세요.", "Choose the profile to overwrite with the copy."),
             scale,
             vpH
         );
@@ -95,16 +95,21 @@ public static class ProfileCopyFlow
         // current_run(.save/_mp.save); every other direction copies it normally.
         bool excludesCurrentRun = src.IsModded && !dst.IsModded;
         var confirmMsg =
-            $"프로필 {src.ProfileNumber}{(src.IsModded ? " · 모드" : "")} → "
-            + $"프로필 {dst.ProfileNumber}{(dst.IsModded ? " · 모드" : "")} 복제.\n\n"
-            + "대상 슬롯의 현재 데이터가 덮어써집니다. 진행 전 로컬 백업이 자동 생성됩니다.";
+            Loc.Tr(
+                $"프로필 {src.ProfileNumber}{(src.IsModded ? " · 모드" : "")} → "
+                    + $"프로필 {dst.ProfileNumber}{(dst.IsModded ? " · 모드" : "")} 복제.\n\n"
+                    + "대상 슬롯의 현재 데이터가 덮어써집니다. 진행 전 로컬 백업이 자동 생성됩니다.",
+                $"Copy Profile {src.ProfileNumber}{(src.IsModded ? " (Modded)" : "")} to "
+                    + $"Profile {dst.ProfileNumber}{(dst.IsModded ? " (Modded)" : "")}.\n\n"
+                    + "The destination's current data will be overwritten. A local backup is made automatically first."
+            );
         if (excludesCurrentRun)
-            confirmMsg += "\n\n진행 중이던 런(current_run)은 복사되지 않습니다.";
+            confirmMsg += Loc.Tr("\n\n진행 중이던 런(current_run)은 복사되지 않습니다.", "\n\nA run in progress (current_run) won't be copied.");
 
         if (!await ShowConfirmAsync(parent, confirmMsg, scale))
             return false;
 
-        var busy2 = BusyOverlay.Show(parent, "프로필 복제 중...", scale);
+        var busy2 = BusyOverlay.Show(parent, Loc.Tr("프로필 복제 중...", "Copying profile..."), scale);
         ProfileCopyResult result;
         try
         {
@@ -123,7 +128,7 @@ public static class ProfileCopyFlow
         {
             PatchHelper.Log($"{Tag} CopyProfile threw: {ex.Message}");
             busy2.Dismiss();
-            await SimpleResultDialog.ShowAsync(parent, false, $"복제 중 오류: {ex.Message}", scale);
+            await SimpleResultDialog.ShowAsync(parent, false, Loc.Tr($"복제 중 오류: {ex.Message}", $"Copy failed: {ex.Message}"), scale);
             return false;
         }
         busy2.Dismiss();
@@ -139,8 +144,8 @@ public static class ProfileCopyFlow
                 parent,
                 false,
                 result.NeedsPermission
-                    ? "백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요."
-                    : (result.Error ?? "복제 중 오류가 발생했습니다."),
+                    ? Loc.Tr("백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again.")
+                    : (result.Error ?? Loc.Tr("복제 중 오류가 발생했습니다.", "An error occurred while copying.")),
                 scale
             );
             return false;
@@ -159,7 +164,7 @@ public static class ProfileCopyFlow
             await SimpleResultDialog.ShowAsync(
                 parent,
                 true,
-                $"복제 완료 ({result.FileCount}개 파일).",
+                Loc.Tr($"복제 완료 ({result.FileCount}개 파일).", $"Copy complete ({Loc.Files(result.FileCount)})."),
                 scale
             );
             return true;
@@ -167,14 +172,14 @@ public static class ProfileCopyFlow
 
         bool pushToCloud = await ShowConfirmAsync(
             parent,
-            "클라우드에도 반영할까요?",
+            Loc.Tr("클라우드에도 반영할까요?", "Also upload to Steam Cloud?"),
             scale,
-            okLabel: "예",
-            cancelLabel: "아니오"
+            okLabel: Loc.Tr("예", "Yes"),
+            cancelLabel: Loc.Tr("아니오", "No")
         );
         if (pushToCloud)
         {
-            var busy3 = BusyOverlay.Show(parent, "클라우드 반영 중...", scale);
+            var busy3 = BusyOverlay.Show(parent, Loc.Tr("클라우드 반영 중...", "Uploading to cloud..."), scale);
             bool verified;
             try
             {
@@ -208,7 +213,7 @@ public static class ProfileCopyFlow
                     // so the queue depth IS the remaining-file count.
                     int pending = cloudStore.PendingWriteCount;
                     if (pending > 0)
-                        busy3.SetMessage($"클라우드 반영 중... 남은 파일 {pending}개");
+                        busy3.SetMessage(Loc.Tr($"클라우드 반영 중... 남은 파일 {pending}개", $"Uploading to cloud... {Loc.Files(pending)} left"));
                     await Task.Delay(400);
                 }
                 verified = await work;
@@ -231,7 +236,7 @@ public static class ProfileCopyFlow
                 await SimpleResultDialog.ShowAsync(
                     parent,
                     false,
-                    "클라우드 반영에 실패했습니다. 이번 세션은 로컬 전용으로 전환됩니다.",
+                    Loc.Tr("클라우드 반영에 실패했습니다. 이번 세션은 로컬 전용으로 전환됩니다.", "Couldn't upload to the cloud. This session will switch to local-only mode."),
                     scale
                 );
             }
@@ -240,7 +245,7 @@ public static class ProfileCopyFlow
                 await SimpleResultDialog.ShowAsync(
                     parent,
                     true,
-                    $"복제 완료 및 클라우드 반영됨 ({result.FileCount}개 파일).",
+                    Loc.Tr($"복제 완료 및 클라우드 반영됨 ({result.FileCount}개 파일).", $"Copy complete and uploaded to the cloud ({Loc.Files(result.FileCount)})."),
                     scale
                 );
             }
@@ -250,8 +255,12 @@ public static class ProfileCopyFlow
             await SimpleResultDialog.ShowAsync(
                 parent,
                 true,
-                "복제는 완료됐지만 클라우드에는 반영하지 않았습니다.\n"
-                    + "다음 동기화에서 클라우드 진행도가 더 높으면 복사본이 되돌려질 수 있습니다.",
+                Loc.Tr(
+                    "복제는 완료됐지만 클라우드에는 반영하지 않았습니다.\n"
+                        + "다음 동기화에서 클라우드 진행도가 더 높으면 복사본이 되돌려질 수 있습니다.",
+                    "Copy complete, but it was not uploaded to the cloud.\n"
+                        + "If the cloud has more progress at the next sync, it may overwrite the copy."
+                ),
                 scale
             );
         }
@@ -271,7 +280,7 @@ public static class ProfileCopyFlow
         float vpH = LauncherUI.ResolveViewportHeight(parent);
 
         List<LocalBackupService.SnapshotInfo> snapshots;
-        var busy = BusyOverlay.Show(parent, "백업 목록 확인 중...", scale);
+        var busy = BusyOverlay.Show(parent, Loc.Tr("백업 목록 확인 중...", "Checking backups..."), scale);
         try
         {
             snapshots = await RunBlockingAsync(LocalBackupService.ListSnapshots);
@@ -280,14 +289,14 @@ public static class ProfileCopyFlow
         {
             PatchHelper.Log($"{Tag} RunRestoreAsync: ListSnapshots failed: {ex.Message}");
             busy.Dismiss();
-            await SimpleResultDialog.ShowAsync(parent, false, "백업 목록을 확인하지 못했습니다.", scale);
+            await SimpleResultDialog.ShowAsync(parent, false, Loc.Tr("백업 목록을 확인하지 못했습니다.", "Couldn't read the list of backups."), scale);
             return false;
         }
         busy.Dismiss();
 
         if (snapshots.Count == 0)
         {
-            await SimpleResultDialog.ShowAsync(parent, false, "백업이 없습니다.", scale);
+            await SimpleResultDialog.ShowAsync(parent, false, Loc.Tr("백업이 없습니다.", "No backups found."), scale);
             return false;
         }
 
@@ -299,13 +308,13 @@ public static class ProfileCopyFlow
 
         bool confirmed = await ShowConfirmAsync(
             parent,
-            "이 백업 시점으로 전체 세이브를 되돌립니다. 현재 상태는 복원 직전에 자동 백업됩니다.",
+            Loc.Tr("이 백업 시점으로 전체 세이브를 되돌립니다. 현재 상태는 복원 직전에 자동 백업됩니다.", "This restores all saves to the selected backup. Your current saves are backed up automatically first."),
             scale
         );
         if (!confirmed)
             return false;
 
-        var busy2 = BusyOverlay.Show(parent, "복원 중...", scale);
+        var busy2 = BusyOverlay.Show(parent, Loc.Tr("복원 중...", "Restoring..."), scale);
         LocalBackupService.RestoreResult result;
         try
         {
@@ -315,7 +324,7 @@ public static class ProfileCopyFlow
         {
             PatchHelper.Log($"{Tag} RestoreSnapshot threw: {ex.Message}");
             busy2.Dismiss();
-            await SimpleResultDialog.ShowAsync(parent, false, $"복원 중 오류: {ex.Message}", scale);
+            await SimpleResultDialog.ShowAsync(parent, false, Loc.Tr($"복원 중 오류: {ex.Message}", $"Restore failed: {ex.Message}"), scale);
             return false;
         }
         busy2.Dismiss();
@@ -331,8 +340,8 @@ public static class ProfileCopyFlow
                 parent,
                 false,
                 result.NeedsPermission
-                    ? "백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요."
-                    : (result.Error ?? "복원 중 오류가 발생했습니다."),
+                    ? Loc.Tr("백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again.")
+                    : (result.Error ?? Loc.Tr("복원 중 오류가 발생했습니다.", "An error occurred while restoring.")),
                 scale
             );
             return false;
@@ -348,7 +357,7 @@ public static class ProfileCopyFlow
             await SimpleResultDialog.ShowAsync(
                 parent,
                 true,
-                $"복원 완료 ({result.FileCount}개 파일).",
+                Loc.Tr($"복원 완료 ({result.FileCount}개 파일).", $"Restore complete ({Loc.Files(result.FileCount)})."),
                 scale
             );
             return true;
@@ -359,14 +368,14 @@ public static class ProfileCopyFlow
         // slot-scoped apply.
         bool pushToCloud = await ShowConfirmAsync(
             parent,
-            "클라우드에도 반영할까요?",
+            Loc.Tr("클라우드에도 반영할까요?", "Also upload to Steam Cloud?"),
             scale,
-            okLabel: "예",
-            cancelLabel: "아니오"
+            okLabel: Loc.Tr("예", "Yes"),
+            cancelLabel: Loc.Tr("아니오", "No")
         );
         if (pushToCloud)
         {
-            var busy3 = BusyOverlay.Show(parent, "클라우드 반영 중...", scale);
+            var busy3 = BusyOverlay.Show(parent, Loc.Tr("클라우드 반영 중...", "Uploading to cloud..."), scale);
             CloudBatchOutcome outcome;
             try
             {
@@ -378,7 +387,7 @@ public static class ProfileCopyFlow
                 var progress = new DeferredProgress(p =>
                 {
                     if (GodotObject.IsInstanceValid(busy3))
-                        busy3.SetMessage($"클라우드 반영 중... {p.done}/{p.total}");
+                        busy3.SetMessage(Loc.Tr($"클라우드 반영 중... {p.done}/{p.total}", $"Uploading to cloud... {p.done}/{p.total}"));
                 });
                 outcome = await CloudSyncCoordinator.ManualPushAllAsync(
                     LauncherPatches.SavedAccountName,
@@ -395,10 +404,10 @@ public static class ProfileCopyFlow
 
             var msg = outcome switch
             {
-                CloudBatchOutcome.Success => $"복원 완료 및 클라우드 반영됨 ({result.FileCount}개 파일).",
+                CloudBatchOutcome.Success => Loc.Tr($"복원 완료 및 클라우드 반영됨 ({result.FileCount}개 파일).", $"Restore complete and uploaded to the cloud ({Loc.Files(result.FileCount)})."),
                 CloudBatchOutcome.TimedOut =>
-                    "클라우드 반영이 시간 초과되었습니다. 일부 파일이 반영되지 않았을 수 있습니다.",
-                _ => "클라우드 반영 중 오류가 발생했습니다. 로그를 확인하세요.",
+                    Loc.Tr("클라우드 반영이 시간 초과되었습니다. 일부 파일이 반영되지 않았을 수 있습니다.", "The cloud upload timed out. Some files may not have been uploaded."),
+                _ => Loc.Tr("클라우드 반영 중 오류가 발생했습니다. 로그를 확인하세요.", "An error occurred during the cloud upload. Check the log."),
             };
             await SimpleResultDialog.ShowAsync(
                 parent,
@@ -412,8 +421,12 @@ public static class ProfileCopyFlow
             await SimpleResultDialog.ShowAsync(
                 parent,
                 true,
-                "복원은 완료됐지만 클라우드에는 반영하지 않았습니다.\n"
-                    + "다음 동기화에서 클라우드 진행도가 더 높으면 복사본이 되돌려질 수 있습니다.",
+                Loc.Tr(
+                    "복원은 완료됐지만 클라우드에는 반영하지 않았습니다.\n"
+                        + "다음 동기화에서 클라우드 진행도가 더 높으면 복사본이 되돌려질 수 있습니다.",
+                    "Restore complete, but it was not uploaded to the cloud.\n"
+                        + "If the cloud has more progress at the next sync, it may overwrite the restored data."
+                ),
                 scale
             );
         }

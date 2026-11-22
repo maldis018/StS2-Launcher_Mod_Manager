@@ -109,7 +109,7 @@ public class ProfileCopyPickerDialog : ColorRect
         vbox.AddChild(buttonRow);
 
         var closeButton = new StyledButton(
-            "닫기",
+            Loc.Tr("닫기", "Close"),
             scale,
             fontSize: sz.CloseFs,
             height: sz.CloseHeight
@@ -172,7 +172,7 @@ public class ProfileCopyPickerDialog : ColorRect
         hbox.AddChild(textCol);
 
         var titleLabel = new StyledLabel(
-            slot.ProfileLabel ?? "프로필",
+            slot.ProfileLabel ?? Loc.Tr("프로필", "Profile"),
             scale,
             fontSize: sz.RowTitleFs,
             align: HorizontalAlignment.Left
@@ -194,8 +194,8 @@ public class ProfileCopyPickerDialog : ColorRect
         // slot has anything at all, which is exactly the distinction that
         // matters when picking a DESTINATION (overwrite-empty vs. overwrite-data).
         var (badgeText, badgeColor) = slot.IsEmpty
-            ? ("비어 있음", new Color(0.6f, 0.6f, 0.6f))
-            : ("데이터 있음", new Color(0.3f, 0.75f, 0.5f));
+            ? (Loc.Tr("비어 있음", "Empty"), new Color(0.6f, 0.6f, 0.6f))
+            : (Loc.Tr("데이터 있음", "Has data"), new Color(0.3f, 0.75f, 0.5f));
         var badge = new PanelContainer();
         var badgeStyle = new StyleBoxFlat();
         badgeStyle.BgColor = badgeColor;
@@ -217,7 +217,7 @@ public class ProfileCopyPickerDialog : ColorRect
     private static string DescribeSlot(SaveProgressSummary slot)
     {
         if (slot.IsEmpty)
-            return "비어 있음";
+            return Loc.Tr("비어 있음", "Empty");
         var parts = new List<string> { slot.FormatSize() };
         if (slot.ParseSucceeded)
             parts.Add(slot.FormatPlaytime());

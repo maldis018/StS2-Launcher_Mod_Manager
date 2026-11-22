@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Steam;
 
@@ -53,8 +54,8 @@ public class SaveProgressSummary
         {
             if (ProfileNumber <= 0)
                 return null;
-            var moddedTag = IsModded ? " · 모드" : "";
-            return $"프로필 {ProfileNumber}{moddedTag}";
+            var moddedTag = IsModded ? Loc.Tr(" · 모드", " · Modded") : "";
+            return Loc.Tr($"프로필 {ProfileNumber}{moddedTag}", $"Profile {ProfileNumber}{moddedTag}");
         }
     }
 
@@ -212,7 +213,7 @@ public class SaveProgressSummary
     {
         if (!HasCurrentRun)
             return "—";
-        return $"{CurrentRunAct}막 {CurrentRunFloor}층";
+        return Loc.Tr($"{CurrentRunAct}막 {CurrentRunFloor}층", $"Act {CurrentRunAct} Floor {CurrentRunFloor}");
     }
 
     // "Xh Ym" format. Handles 0 cleanly; no seconds shown to keep the dialog tidy.

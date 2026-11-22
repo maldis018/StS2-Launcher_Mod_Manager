@@ -54,7 +54,7 @@ public class LocalOnlyMenuDialog : ColorRect
         vbox.AddChild(title);
 
         var hint = new StyledLabel(
-            "클라우드 동기화가 꺼져 있어 로컬 기능만 사용할 수 있습니다.",
+            Loc.Tr("클라우드 동기화가 꺼져 있어 로컬 기능만 사용할 수 있습니다.", "Cloud sync is off, so only local features are available."),
             scale,
             fontSize: hintFs
         );
@@ -67,16 +67,16 @@ public class LocalOnlyMenuDialog : ColorRect
         buttonCol.AddThemeConstantOverride("separation", (int)(8 * scale));
         vbox.AddChild(buttonCol);
 
-        var copyButton = new StyledButton("프로필 복제", scale, fontSize: btnFs, height: btnHeight);
+        var copyButton = new StyledButton(Loc.Tr("프로필 복제", "Copy Profile"), scale, fontSize: btnFs, height: btnHeight);
         copyButton.Pressed += () => Resolve(PickerAction.Copy);
         buttonCol.AddChild(copyButton);
 
-        var restoreButton = new StyledButton("백업 복원", scale, fontSize: btnFs, height: btnHeight);
+        var restoreButton = new StyledButton(Loc.Tr("백업 복원", "Restore Backup"), scale, fontSize: btnFs, height: btnHeight);
         restoreButton.Pressed += () => Resolve(PickerAction.Restore);
         buttonCol.AddChild(restoreButton);
 
         var closeButton = new StyledButton(
-            "닫기",
+            Loc.Tr("닫기", "Close"),
             scale,
             fontSize: btnFs,
             height: btnHeight,

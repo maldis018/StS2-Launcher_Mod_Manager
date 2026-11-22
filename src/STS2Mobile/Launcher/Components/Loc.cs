@@ -32,4 +32,8 @@ public static class Loc
     }
 
     public static string Tr(string ko, string en) => IsKo ? ko : en;
+
+    // English file count with correct singular/plural ("1 file", "3 files").
+    // Only meant for the English half of a Loc.Tr pair.
+    public static string Files(int n) => n == 1 ? "1 file" : $"{n} files";
 }
