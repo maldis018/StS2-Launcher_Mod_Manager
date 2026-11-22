@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using MegaCrit.Sts2.Core.Saves;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Steam;
 
@@ -89,7 +90,7 @@ public static class ProfileCopyService
                 return new ProfileCopyResult
                 {
                     Success = false,
-                    Error = "원본과 대상 슬롯이 동일합니다.",
+                    Error = Loc.Tr("원본과 대상 슬롯이 동일합니다.", "The source and destination are the same profile."),
                 };
             }
 
@@ -205,7 +206,7 @@ public static class ProfileCopyService
                     TotalBytes = totalBytes,
                     BackupPath = backup.DestPath,
                     CurrentRunExcluded = excludeCurrentRun,
-                    Error = $"일부 파일 복사 실패: {failedNames}. 사전 백업: {backup.DestPath}",
+                    Error = Loc.Tr($"일부 파일 복사 실패: {failedNames}. 사전 백업: {backup.DestPath}", $"Some files failed to copy: {failedNames}. Backup taken beforehand: {backup.DestPath}"),
                 };
             }
 

@@ -116,11 +116,15 @@ public static class ProgressRecoveryGate
         try
         {
             var dialog = new StyledDialog(
-                "이번 세션은 세이브를 복구 모드로 열었습니다(게임 버전 차이). "
-                    + "로컬을 클라우드로 덮으시겠습니까?",
+                Loc.Tr(
+                    "이번 세션은 세이브를 복구 모드로 열었습니다(게임 버전 차이). "
+                        + "로컬을 클라우드로 덮으시겠습니까?",
+                    "This session opened your save in recovery mode because of a game version mismatch. "
+                        + "Overwrite local progress with the cloud version?"
+                ),
                 scale,
-                okLabel: "덮어쓰기",
-                cancelLabel: "취소"
+                okLabel: Loc.Tr("덮어쓰기", "Overwrite"),
+                cancelLabel: Loc.Tr("취소", "Cancel")
             );
             // Above CloudConflictDialog (200) since this can appear mid
             // pre-PLAY handshake, stacked over that dialog's own

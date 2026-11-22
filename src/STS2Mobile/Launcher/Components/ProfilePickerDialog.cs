@@ -6,7 +6,7 @@ using STS2Mobile.Steam;
 
 namespace STS2Mobile.Launcher.Components;
 
-// Issue #64: what the "프로필 복제"/"백업 복원" buttons in ProfilePickerDialog's
+// Issue #64: what the Loc.Tr("프로필 복제", "Copy Profile")/Loc.Tr("백업 복원", "Restore Backup") buttons in ProfilePickerDialog's
 // closing button row requested. Also used by LocalOnlyMenuDialog (D7 bypass
 // entry, cloud unavailable) so both entry points feed the same
 // LauncherPatches branch logic.
@@ -34,8 +34,8 @@ public class ProfilePickerDialog : ColorRect
 
     public Task<SyncDecisionResult> Result => _result.Task;
 
-    // Issue #64: set by the "프로필 복제"/"백업 복원" buttons in the closing button
-    // row, alongside resolving Result with null (same as the plain "닫기"
+    // Issue #64: set by the Loc.Tr("프로필 복제", "Copy Profile")/Loc.Tr("백업 복원", "Restore Backup") buttons in the closing button
+    // row, alongside resolving Result with null (same as the plain Loc.Tr("닫기", "Close")
     // button) — callers must check this AFTER a null Result to tell "user
     // closed the dialog" apart from "user wants a different flow".
     public PickerAction RequestedAction { get; private set; } = PickerAction.None;
@@ -113,7 +113,7 @@ public class ProfilePickerDialog : ColorRect
         vbox.AddChild(title);
 
         var hint = new StyledLabel(
-            "프로필별로 로컬과 Steam Cloud의 진행도를 확인하고 개별적으로 동기화할 수 있습니다.",
+            Loc.Tr("프로필별로 로컬과 Steam Cloud의 진행도를 확인하고 개별적으로 동기화할 수 있습니다.", "Compare local and Steam Cloud progress for each profile, and sync profiles individually."),
             scale,
             fontSize: sz.HintFs
         );
@@ -143,7 +143,7 @@ public class ProfilePickerDialog : ColorRect
         // `if (picked == null)` check without changing the Result contract every
         // other caller of this dialog relies on.
         var copyButton = new StyledButton(
-            "프로필 복제",
+            Loc.Tr("프로필 복제", "Copy Profile"),
             scale,
             fontSize: sz.CloseFs,
             height: sz.CloseHeight
@@ -160,7 +160,7 @@ public class ProfilePickerDialog : ColorRect
         buttonRow.AddChild(copyButton);
 
         var restoreButton = new StyledButton(
-            "백업 복원",
+            Loc.Tr("백업 복원", "Restore Backup"),
             scale,
             fontSize: sz.CloseFs,
             height: sz.CloseHeight
@@ -177,7 +177,7 @@ public class ProfilePickerDialog : ColorRect
         buttonRow.AddChild(restoreButton);
 
         var closeButton = new StyledButton(
-            "닫기",
+            Loc.Tr("닫기", "Close"),
             scale,
             fontSize: sz.CloseFs,
             height: sz.CloseHeight
@@ -263,11 +263,11 @@ public class ProfilePickerDialog : ColorRect
 
         var (badgeText, badgeColor) = slot.Decision switch
         {
-            SyncDecision.Identical => ("일치", new Color(0.3f, 0.75f, 0.5f)),
-            SyncDecision.Conflict => ("충돌", new Color(0.85f, 0.4f, 0.3f)),
-            SyncDecision.MobileOnly => ("로컬만", new Color(0.4f, 0.6f, 0.85f)),
-            SyncDecision.CloudOnly => ("클라우드만", new Color(0.75f, 0.6f, 0.25f)),
-            SyncDecision.Unverified => ("확인 불가", new Color(0.6f, 0.6f, 0.6f)),
+            SyncDecision.Identical => (Loc.Tr("일치", "In sync"), new Color(0.3f, 0.75f, 0.5f)),
+            SyncDecision.Conflict => (Loc.Tr("충돌", "Conflict"), new Color(0.85f, 0.4f, 0.3f)),
+            SyncDecision.MobileOnly => (Loc.Tr("로컬만", "Local only"), new Color(0.4f, 0.6f, 0.85f)),
+            SyncDecision.CloudOnly => (Loc.Tr("클라우드만", "Cloud only"), new Color(0.75f, 0.6f, 0.25f)),
+            SyncDecision.Unverified => (Loc.Tr("확인 불가", "Unknown"), new Color(0.6f, 0.6f, 0.6f)),
             _ => ("—", new Color(0.6f, 0.6f, 0.6f)),
         };
         var badge = new PanelContainer();
@@ -292,13 +292,13 @@ public class ProfilePickerDialog : ColorRect
     {
         return slot.Decision switch
         {
-            SyncDecision.MobileOnly => $"로컬에만 있음 · {slot.LocalSummary.FormatSize()}",
-            SyncDecision.CloudOnly => $"Cloud에만 있음 · {slot.CloudSummary.FormatSize()}",
+            SyncDecision.MobileOnly => Loc.Tr($"로컬에만 있음 · {slot.LocalSummary.FormatSize()}", $"Local only · {slot.LocalSummary.FormatSize()}"),
+            SyncDecision.CloudOnly => Loc.Tr($"Cloud에만 있음 · {slot.CloudSummary.FormatSize()}", $"Cloud only · {slot.CloudSummary.FormatSize()}"),
             SyncDecision.Identical =>
-                $"동기화됨 · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}",
+                Loc.Tr($"동기화됨 · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}", $"Synced · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}"),
             SyncDecision.Conflict =>
-                $"로컬 {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}",
-            SyncDecision.Unverified => "일시적으로 클라우드를 확인하지 못함 · 다시 시도해 주세요",
+                Loc.Tr($"로컬 {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}", $"Local {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}"),
+            SyncDecision.Unverified => Loc.Tr("일시적으로 클라우드를 확인하지 못함 · 다시 시도해 주세요", "Couldn't reach the cloud right now · Please try again"),
             _ => "",
         };
     }

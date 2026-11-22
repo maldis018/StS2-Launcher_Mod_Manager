@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SteamKit2;
 using SteamKit2.Internal;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Steam;
 
@@ -154,7 +155,7 @@ public class SteamConnection : IDisposable
             // problem and send the user down a re-login path for nothing.
             _connectError = IsAuthFailure(cb.Result)
                 ? new InvalidOperationException(
-                    "Steam 로그인이 만료되었거나 취소되었습니다. 다시 로그인해 주세요."
+                    Loc.Tr("Steam 로그인이 만료되었거나 취소되었습니다. 다시 로그인해 주세요.", "Your Steam login expired or was canceled. Please log in again.")
                 )
                 : new InvalidOperationException($"Login failed: {cb.Result}");
             _connectedGate.Set();

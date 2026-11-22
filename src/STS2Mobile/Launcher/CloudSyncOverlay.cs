@@ -37,7 +37,7 @@ public class CloudSyncOverlay : Control
             panel.UpdateSizeFromViewport(vpSize);
             AddChild(panel);
 
-            _statusLabel = new StyledLabel("클라우드 상태 확인 중...", _scale, fontSize: 20);
+            _statusLabel = new StyledLabel(Loc.Tr("클라우드 상태 확인 중...", "Checking cloud status..."), _scale, fontSize: 20);
             panel.Content.AddChild(_statusLabel);
 
             _progressBar = new StyledProgressBar(_scale);
@@ -47,7 +47,7 @@ public class CloudSyncOverlay : Control
             _progressBar.Visible = false;
             panel.Content.AddChild(_progressBar);
 
-            _detailLabel = new StyledLabel("잠시만 기다려 주세요", _scale, fontSize: 13);
+            _detailLabel = new StyledLabel(Loc.Tr("잠시만 기다려 주세요", "Please wait a moment"), _scale, fontSize: 13);
             _detailLabel.Modulate = new Color(0.7f, 0.7f, 0.7f);
             panel.Content.AddChild(_detailLabel);
 
@@ -63,8 +63,9 @@ public class CloudSyncOverlay : Control
     // at each phase transition (handshake → backup → apply). Callers may be on a
     // background thread (post-await continuations resume off-main via ConfigureAwait
     // deeper in the backup path), so the mutation is deferred onto the main thread.
-    public void SetStatus(string status, string detail = "잠시만 기다려 주세요")
+    public void SetStatus(string status, string detail = null)
     {
+        detail ??= Loc.Tr("잠시만 기다려 주세요", "Please wait a moment");
         Callable
             .From(() =>
             {
@@ -88,7 +89,7 @@ public class CloudSyncOverlay : Control
             .From(() =>
             {
                 if (_statusLabel != null)
-                    _statusLabel.Text = "클라우드 백업 중";
+                    _statusLabel.Text = Loc.Tr("클라우드 백업 중", "Backing up to cloud");
                 if (_progressBar != null)
                 {
                     _progressBar.Visible = true;
