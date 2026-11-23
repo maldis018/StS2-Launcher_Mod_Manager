@@ -424,6 +424,29 @@ public class LauncherModel : IDisposable
         }
     }
 
+    // Looks up the game version each branch would install (see
+    // DepotDownloader.ProbeBranchVersionsAsync). onResult runs on a worker
+    // thread; callers marshal to the main thread themselves.
+    public async Task ProbeBranchVersionsAsync(
+        IEnumerable<string> branches,
+        Action<string, string> onResult,
+        CancellationToken ct
+    )
+    {
+        if (_state != SessionState.LoggedIn || _connection == null)
+            return;
+
+        var downloader = new DepotDownloader(_connection, _dataDir);
+        try
+        {
+            await Task.Run(() => downloader.ProbeBranchVersionsAsync(branches, onResult, ct), ct);
+        }
+        finally
+        {
+            downloader.Dispose();
+        }
+    }
+
     public FastPathResult Retry()
     {
         _downloadCts?.Cancel();

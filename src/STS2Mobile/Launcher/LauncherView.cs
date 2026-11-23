@@ -453,7 +453,7 @@ public class LauncherView
         _parent.AddChild(dialog);
     }
 
-    public void ShowBranchPicker(
+    public BranchPickerDialog ShowBranchPicker(
         IReadOnlyList<SteamBranchInfo> branches,
         string currentBranch,
         Action<string> onConfirmed,
@@ -461,13 +461,19 @@ public class LauncherView
         Action onAtlasWipeRequested = null
     )
     {
-        var dialog = new BranchPickerDialog(branches, currentBranch, _scale);
+        var dialog = new BranchPickerDialog(
+            branches,
+            currentBranch,
+            _scale,
+            showImageCacheRepair: onAtlasWipeRequested != null
+        );
         dialog.BranchConfirmed += onConfirmed;
         if (onCancelled != null)
             dialog.Cancelled += onCancelled;
         if (onAtlasWipeRequested != null)
             dialog.AtlasWipeRequested += onAtlasWipeRequested;
         _parent.AddChild(dialog);
+        return dialog;
     }
 
     private void DismissKeyboard(InputEvent ev)
