@@ -526,10 +526,7 @@ public class DepotDownloader : IDisposable
             branch
         );
         if (code == 0)
-            throw new DownloadTransientException(
-                $"Failed to get manifest request code for depot {depotId}. "
-                    + "Ensure the account owns this app."
-            );
+            throw new ManifestRequestCodeRefusedException(depotId);
 
         _manifestRequestCodes[(depotId, manifestId)] = (code, DateTime.UtcNow.AddMinutes(5));
         return code;
@@ -1379,7 +1376,47 @@ public class DepotDownloader : IDisposable
             .AsTask();
     }
 
+    // SteamKit2 returns request code 0 for any non-OK answer, so a refusal
+    // (the account may not fetch this manifest) looks the same as a brief
+    // Steam-side error. The Steam pipeline retries it a few times; if Steam
+    // still refuses, DownloadManifestAsync turns it into a fatal error so the
+    // launcher doesn't wait ~19 minutes for a network problem that isn't one.
+    private sealed class ManifestRequestCodeRefusedException : DownloadTransientException
+    {
+        public readonly uint DepotId;
+
+        public ManifestRequestCodeRefusedException(uint depotId)
+            : base($"Steam returned no manifest request code for depot {depotId}")
+        {
+            DepotId = depotId;
+        }
+    }
+
     private async Task<DepotManifest> DownloadManifestAsync(
+        uint depotId,
+        ulong manifestId,
+        string branch,
+        byte[] depotKey,
+        CancellationToken ct
+    )
+    {
+        try
+        {
+            return await DownloadManifestCoreAsync(depotId, manifestId, branch, depotKey, ct);
+        }
+        catch (ManifestRequestCodeRefusedException ex)
+        {
+            throw new DownloadFatalException(
+                Loc.Tr(
+                    $"Steam이 디포 {ex.DepotId}의 매니페스트 요청을 거부했습니다. 이 계정이 게임을 소유하고 있고 선택한 브랜치에 접근할 수 있는지 확인하세요.",
+                    $"Steam refused the manifest request for depot {ex.DepotId}. Check that this account owns the game and can access the selected branch."
+                ),
+                ex
+            );
+        }
+    }
+
+    private async Task<DepotManifest> DownloadManifestCoreAsync(
         uint depotId,
         ulong manifestId,
         string branch,
