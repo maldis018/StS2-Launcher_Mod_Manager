@@ -7,10 +7,16 @@
 # Secrets:
 #   RELEASE_KEYSTORE_B64       base64 of the release keystore (.p12)
 #   RELEASE_KEYSTORE_PASSWORD  store/key password
-#   STS2_INPUTS_TOKEN          read-only token for the private repo holding sts2.dll
+#   STS2_INPUTS_TOKEN          fine-grained token, Contents read-only, scoped to
+#                              the private repo holding sts2.dll
+#   STS2_INPUTS_REPO           owner/name of that repo (a secret, not a variable,
+#                              so it is masked in the public logs)
 # Variables:
-#   STS2_INPUTS_REPO           owner/name of that private repo
 #   RELEASE_CERT_SHA256        optional: expected signer cert SHA-256 (hex, no colons)
+#
+# Logs of a public repo are public. Secrets are masked; sts2.dll is never
+# printed, cached (it lives in RUNNER_TEMP, outside .ci-deps) or uploaded (the
+# artifact is only the APK), and it is deleted once the build is done.
 name: Release APK
 
 on:
@@ -67,21 +73,21 @@ jobs:
           path: .ci-deps
           key: ci-deps-${{ hashFiles('scripts/ci/fetch-build-inputs.sh') }}
 
-      # PENDING DECISION: where sts2.dll comes from. This draft implements
-      # "private repo release asset": a private repo (vars.STS2_INPUTS_REPO)
-      # with a release tagged sts2-dll holding sts2.dll (+ sts2.deps.json),
-      # read with a fine-grained, read-only token.
+      # sts2.dll comes from the sts2-dll release of a private repo, read with a
+      # fine-grained, read-only token. Refresh it there when a game update
+      # changes an API the patcher uses.
       - name: Fetch sts2.dll (compile-time reference, private)
         env:
           GH_TOKEN: ${{ secrets.STS2_INPUTS_TOKEN }}
-          STS2_INPUTS_REPO: ${{ vars.STS2_INPUTS_REPO }}
+          STS2_INPUTS_REPO: ${{ secrets.STS2_INPUTS_REPO }}
         run: |
           if [ -z "$GH_TOKEN" ] || [ -z "$STS2_INPUTS_REPO" ]; then
-            echo "::error::STS2_INPUTS_TOKEN secret or STS2_INPUTS_REPO variable is not set"
+            echo "::error::STS2_INPUTS_TOKEN or STS2_INPUTS_REPO secret is not set"
             exit 1
           fi
           gh release download sts2-dll -R "$STS2_INPUTS_REPO" \
-            -p sts2.dll -p sts2.deps.json -D "$RUNNER_TEMP/sts2"
+            -p sts2.dll -p sts2.deps.json -D "$RUNNER_TEMP/sts2" > /dev/null
+          echo "sts2.dll fetched"
 
       - name: Fetch public build inputs
         env:
@@ -111,9 +117,11 @@ jobs:
           version="$(grep '^export_version_name=' android/gradle.properties | cut -d= -f2)"
           echo "APK=$GITHUB_WORKSPACE/android/build/outputs/apk/mono/release/StS2LauncherRedux-v$version.apk" >> "$GITHUB_ENV"
 
-      - name: Remove the keystore
+      - name: Remove the keystore and sts2.dll
         if: always()
-        run: rm -f "$RUNNER_TEMP/release.p12"
+        run: |
+          rm -f "$RUNNER_TEMP/release.p12"
+          rm -rf "$RUNNER_TEMP/sts2" upstream/godot-export/.godot/mono/publish/arm64/sts2.*
 
       - name: Verify the signature
         env:
