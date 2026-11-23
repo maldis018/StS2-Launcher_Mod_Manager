@@ -43,6 +43,7 @@
     android:label="StS2 Launcher Redux"
     android:allowBackup="false"
     android:icon="@mipmap/icon"
+    android:roundIcon="@mipmap/icon_round"
     android:appCategory="game"
     android:isGame="true"
     android:hasFragileUserData="false"
