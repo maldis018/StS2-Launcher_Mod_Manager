@@ -1014,7 +1014,7 @@ public class DepotDownloader : IDisposable
         {
             stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log($"Can't read installed {Path.GetFileName(filePath)} for chunk reuse: {ex.Message}");
             return default;
