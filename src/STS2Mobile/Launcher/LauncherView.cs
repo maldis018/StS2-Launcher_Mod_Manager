@@ -146,7 +146,7 @@ public class LauncherView
         left.AddChild(title);
         left.AddChild(new HSeparator());
 
-        _statusLabel = new StyledLabel("Initializing...", scale);
+        _statusLabel = new StyledLabel(Loc.Tr("초기화하는 중...", "Initializing..."), scale);
         _statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         left.AddChild(_statusLabel);
 
@@ -166,14 +166,14 @@ public class LauncherView
         left.AddChild(Actions);
 
         // Issue #58: entry point to the full-screen Mod Hub (revived WIP flow).
-        ModsButton = new StyledButton("MOD MANAGER", scale, fontSize: 14, height: 40);
+        ModsButton = new StyledButton(Loc.Tr("모드 관리", "MOD MANAGER"), scale, fontSize: 14, height: 40);
         ModsButton.Visible = false;
         left.AddChild(ModsButton);
 
         // Repurposed in 0.3.0: opens the Save Sync dialog instead of the WIP
         // mod manager screen (that flow is now the Mod Hub, reachable via
         // ModsButton above since issue #58).
-        ModManagerButton = new StyledButton("SAVE MANAGER", scale, fontSize: 14, height: 40);
+        ModManagerButton = new StyledButton(Loc.Tr("세이브 관리", "SAVE MANAGER"), scale, fontSize: 14, height: 40);
         ModManagerButton.Visible = false;
         left.AddChild(ModManagerButton);
 
@@ -204,12 +204,12 @@ public class LauncherView
         logHeader.AddThemeConstantOverride("separation", (int)(8 * scale));
         right.AddChild(logHeader);
 
-        var logTitle = new StyledLabel("Console", scale, fontSize: 14);
+        var logTitle = new StyledLabel(Loc.Tr("콘솔", "Console"), scale, fontSize: 14);
         logTitle.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.65f));
         logTitle.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         logHeader.AddChild(logTitle);
 
-        DebugButton = new StyledButton("Debug: OFF", scale, fontSize: 11, height: 28);
+        DebugButton = new StyledButton(Loc.Tr("디버그: 꺼짐", "Debug: OFF"), scale, fontSize: 11, height: 28);
         DebugButton.CustomMinimumSize = new Vector2(
             (int)(110 * scale),
             DebugButton.CustomMinimumSize.Y

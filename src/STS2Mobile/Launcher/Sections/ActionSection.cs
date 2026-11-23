@@ -29,9 +29,18 @@ public class ActionSection : VBoxContainer
     private readonly StyleBoxFlat _offStyle;
     private readonly StyleBoxFlat _onStyle;
 
+    // Labels that are set from more than one place (and by LauncherController).
+    public static string GameUpdateLabel => Loc.Tr("게임 업데이트 확인", "CHECK GAME UPDATE");
+    public static string LauncherUpdateLabel => Loc.Tr("런처 업데이트 확인", "CHECK LAUNCHER UPDATE");
+
+    private static string SyncLabel(bool on) =>
+        on
+            ? Loc.Tr("자동 동기화: 켜짐", "Auto Sync: ON")
+            : Loc.Tr("자동 동기화: 꺼짐", "Auto Sync: OFF");
+
     public ActionSection(float scale)
     {
-        _retryButton = new StyledButton("RETRY", scale, variant: ButtonVariant.Danger);
+        _retryButton = new StyledButton(Loc.Tr("다시 시도", "RETRY"), scale, variant: ButtonVariant.Danger);
         _retryButton.Visible = false;
         _retryButton.Pressed += () => RetryPressed?.Invoke();
         AddChild(_retryButton);
@@ -42,7 +51,7 @@ public class ActionSection : VBoxContainer
         _onStyle = StyledButton.MakeOutline(Ui.Success, r, bw);
 
         _localBackupButton = new StyledButton(
-            "Local Backup",
+            Loc.Tr("로컬 백업", "Local Backup"),
             scale,
             fontSize: StyledButton.MainActionFontSize,
             height: StyledButton.MainActionHeight
@@ -52,7 +61,7 @@ public class ActionSection : VBoxContainer
         AddChild(_localBackupButton);
 
         _cloudSyncToggle = new StyledButton(
-            "Auto Sync: OFF",
+            SyncLabel(false),
             scale,
             fontSize: StyledButton.MainActionFontSize,
             height: StyledButton.MainActionHeight
@@ -62,7 +71,7 @@ public class ActionSection : VBoxContainer
         ApplyToggleStyle(_cloudSyncToggle, false);
         _cloudSyncToggle.Toggled += pressed =>
         {
-            _cloudSyncToggle.Text = pressed ? "Auto Sync: ON" : "Auto Sync: OFF";
+            _cloudSyncToggle.Text = SyncLabel(pressed);
             ApplyToggleStyle(_cloudSyncToggle, pressed);
             CloudSyncToggled?.Invoke(pressed);
         };
@@ -73,7 +82,7 @@ public class ActionSection : VBoxContainer
         pushPullRow.AddThemeConstantOverride("separation", (int)(6 * scale));
 
         _pushButton = new StyledButton(
-            "Push to Cloud",
+            Loc.Tr("클라우드에 올리기", "Push to Cloud"),
             scale,
             fontSize: StyledButton.MainActionFontSize,
             height: StyledButton.MainActionHeight
@@ -83,7 +92,7 @@ public class ActionSection : VBoxContainer
         pushPullRow.AddChild(_pushButton);
 
         _pullButton = new StyledButton(
-            "Pull from Cloud",
+            Loc.Tr("클라우드에서 받기", "Pull from Cloud"),
             scale,
             fontSize: StyledButton.MainActionFontSize,
             height: StyledButton.MainActionHeight
@@ -94,13 +103,13 @@ public class ActionSection : VBoxContainer
 
         AddChild(pushPullRow);
 
-        _gameUpdateButton = new StyledButton("CHECK GAME UPDATE", scale, fontSize: 16, height: 48);
+        _gameUpdateButton = new StyledButton(GameUpdateLabel, scale, fontSize: 16, height: 48);
         _gameUpdateButton.Visible = false;
         _gameUpdateButton.Pressed += () => CheckGameUpdatePressed?.Invoke();
         AddChild(_gameUpdateButton);
 
         _launcherUpdateButton = new StyledButton(
-            "CHECK LAUNCHER UPDATE",
+            LauncherUpdateLabel,
             scale,
             fontSize: 16,
             height: 48
@@ -112,7 +121,7 @@ public class ActionSection : VBoxContainer
         // PLAY is the single filled-accent action of the main screen — everything
         // else stays secondary so it reads as THE thing to press (Von Restorff).
         _launchButton = new StyledButton(
-            "LAUNCH",
+            Loc.Tr("게임 시작", "LAUNCH"),
             scale,
             fontSize: 17,
             height: Ui.TouchHeightBig,
@@ -126,7 +135,7 @@ public class ActionSection : VBoxContainer
     public void SetCloudSyncChecked(bool value)
     {
         _cloudSyncToggle.ButtonPressed = value;
-        _cloudSyncToggle.Text = value ? "Auto Sync: ON" : "Auto Sync: OFF";
+        _cloudSyncToggle.Text = SyncLabel(value);
         ApplyToggleStyle(_cloudSyncToggle, value);
     }
 
@@ -150,10 +159,10 @@ public class ActionSection : VBoxContainer
         PushPullRow.Visible = showCloudSync;
         _gameUpdateButton.Visible = showUpdate;
         _gameUpdateButton.Disabled = false;
-        _gameUpdateButton.Text = "CHECK GAME UPDATE";
+        _gameUpdateButton.Text = GameUpdateLabel;
         _launcherUpdateButton.Visible = showUpdate;
         _launcherUpdateButton.Disabled = false;
-        _launcherUpdateButton.Text = "CHECK LAUNCHER UPDATE";
+        _launcherUpdateButton.Text = LauncherUpdateLabel;
         _retryButton.Visible = false;
     }
 

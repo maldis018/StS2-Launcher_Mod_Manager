@@ -217,7 +217,10 @@ public class LauncherModel : IDisposable
             FailedOnConnection = true;
             SetState(
                 SessionState.Failed,
-                "Could not connect to Steam. Check your internet connection."
+                Loc.Tr(
+                    "Steam에 연결할 수 없습니다. 인터넷 연결을 확인하세요.",
+                    "Could not connect to Steam. Check your internet connection."
+                )
             );
         }
     }
@@ -503,7 +506,10 @@ public class LauncherModel : IDisposable
 
         if (!_credentialStore.HasCredentials)
         {
-            SetState(SessionState.Failed, "No saved credentials");
+            SetState(
+                SessionState.Failed,
+                Loc.Tr("저장된 로그인 정보가 없습니다", "No saved credentials")
+            );
             return;
         }
 
@@ -522,7 +528,10 @@ public class LauncherModel : IDisposable
         }
         catch (Exception ex)
         {
-            SetState(SessionState.Failed, $"Connection failed: {ex.Message}");
+            SetState(
+                SessionState.Failed,
+                Loc.Tr($"연결 실패: {ex.Message}", $"Connection failed: {ex.Message}")
+            );
         }
     }
 
@@ -887,7 +896,10 @@ public class LauncherModel : IDisposable
             PatchHelper.Log("[Launcher] Ownership denied");
             SetState(
                 SessionState.Failed,
-                "You don't own Slay the Spire 2. Purchase on Steam to play."
+                Loc.Tr(
+                    "Slay the Spire 2를 보유하고 있지 않습니다. Steam에서 구매한 뒤 플레이하세요.",
+                    "You don't own Slay the Spire 2. Purchase on Steam to play."
+                )
             );
         }
     }

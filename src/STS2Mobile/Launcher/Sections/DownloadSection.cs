@@ -9,6 +9,9 @@ public class DownloadSection : VBoxContainer
     public event Action DownloadRequested;
     public event Action PauseRequested;
 
+    // Also the default label restored by Reset() and set from LauncherController.
+    public static string DownloadLabel => Loc.Tr("게임 파일 다운로드", "DOWNLOAD GAME FILES");
+
     private readonly Button _downloadButton;
     private readonly Button _pauseButton;
     private readonly ProgressBar _progressBar;
@@ -19,7 +22,7 @@ public class DownloadSection : VBoxContainer
         AddThemeConstantOverride("separation", (int)(6 * scale));
         Visible = false;
 
-        _downloadButton = new StyledButton("DOWNLOAD GAME FILES", scale, height: 48);
+        _downloadButton = new StyledButton(DownloadLabel, scale, height: 48);
         _downloadButton.Pressed += () => DownloadRequested?.Invoke();
         AddChild(_downloadButton);
 
@@ -77,10 +80,10 @@ public class DownloadSection : VBoxContainer
 
     public void SetButtonText(string text) => _downloadButton.Text = text;
 
-    public void Reset(string buttonText = "DOWNLOAD GAME FILES")
+    public void Reset(string buttonText = null)
     {
         _downloadButton.Disabled = false;
-        _downloadButton.Text = buttonText;
+        _downloadButton.Text = buttonText ?? DownloadLabel;
         _progressBar.Visible = false;
         _progressBar.Value = 0;
         _progressLabel.Visible = false;

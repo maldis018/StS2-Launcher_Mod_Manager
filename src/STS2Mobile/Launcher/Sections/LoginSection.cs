@@ -32,16 +32,16 @@ public class LoginSection : VBoxContainer
         hint.CustomMinimumSize = new Vector2(Ui.S(scale, 200), 0);
         AddChild(hint);
 
-        UsernameField = new StyledLineEdit("Steam Username", scale);
+        UsernameField = new StyledLineEdit(Loc.Tr("Steam 계정 이름", "Steam Username"), scale);
         UsernameField.TextSubmitted += _ => _passwordField.GrabFocus();
         UsernameField.TextChanged += StripUsernameWhitespace;
         AddChild(UsernameField);
 
-        _passwordField = new StyledLineEdit("Password", scale, secret: true);
+        _passwordField = new StyledLineEdit(Loc.Tr("비밀번호", "Password"), scale, secret: true);
         _passwordField.TextSubmitted += _ => OnLoginPressed();
         AddChild(_passwordField);
 
-        _loginButton = new StyledButton("LOGIN", scale);
+        _loginButton = new StyledButton(Loc.Tr("로그인", "LOGIN"), scale);
         _loginButton.Pressed += OnLoginPressed;
         AddChild(_loginButton);
 
