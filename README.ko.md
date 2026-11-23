@@ -4,7 +4,7 @@
 
 안드로이드에서 모드와 함께 **Slay the Spire 2**를 플레이하세요. StS2 Launcher Redux는 Steam에 로그인해 보유한 게임을 Steam에서 직접 받고, 커스텀 Godot 4.5.1 엔진 빌드 위에서 실행하며, Harmony 런타임 패치로 데스크톱 게임을 터치 화면에 맞게 바꿉니다. 모드(Steam 창작마당 포함), Steam 클라우드 세이브, 로컬 백업도 관리합니다.
 
-**최신 릴리스: [v0.5.1](https://github.com/maldis018/sts2-launcher-redux/releases/latest)**
+**최신 릴리스: [v0.5.2](https://github.com/maldis018/sts2-launcher-redux/releases/latest)**
 
 > StS2 Launcher Redux는 비공식 팬 프로젝트이며, Slay the Spire 2의 개발·배급사인 Mega Crit Games와 제휴하거나 보증·지원을 받지 않습니다. 게임을 보유한 Steam 계정이 필요하며, 이 저장소와 앱에는 게임 파일이 포함되어 있지 않습니다.
 
