@@ -54,11 +54,11 @@ public class QrLoginSection : VBoxContainer
         _hint.CustomMinimumSize = new Vector2(Ui.S(scale, 180), 0);
         side.AddChild(_hint);
 
-        _refreshButton = new StyledButton("NEW CODE", scale);
+        _refreshButton = new StyledButton(Loc.Tr("새 코드 받기", "NEW CODE"), scale);
         _refreshButton.Pressed += () => RefreshRequested?.Invoke();
         side.AddChild(_refreshButton);
 
-        var thisPhoneButton = new StyledButton("SIGN IN ON THIS PHONE", scale);
+        var thisPhoneButton = new StyledButton(Loc.Tr("이 휴대폰에서 로그인", "SIGN IN ON THIS PHONE"), scale);
         thisPhoneButton.Pressed += () => PasswordLoginRequested?.Invoke();
         side.AddChild(thisPhoneButton);
 

@@ -62,6 +62,8 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | English | Korean | Where | Reason, alternatives |
 |---|---|---|---|
 | LOGIN | 로그인 | LoginSection | Steam client wording. |
+| SIGN IN ON THIS PHONE | 이 휴대폰에서 로그인 | QrLoginSection | Switches from the QR code to the password form. 휴대폰 matches the hint text; 기기 would also fit tablets but reads less naturally here. |
+| NEW CODE | 새 코드 받기 | QrLoginSection | Shown when the QR code expired or was denied; matches the hint "새 코드를 받아 다시 시도하세요". |
 | Steam Username | Steam 계정 이름 | login placeholder | Steam Korean client wording ("계정 이름"). |
 | Password | 비밀번호 | login placeholder | Steam Korean client wording. |
 | Enter Steam Guard code | Steam Guard 코드를 입력하세요 | CodeSection | |
@@ -69,6 +71,9 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | SUBMIT | 확인 | CodeSection | Alternative: 인증. 확인 is the usual label for a code field. |
 | DOWNLOAD GAME FILES | 게임 파일 다운로드 | DownloadSection | |
 | RETRY DOWNLOAD | 다운로드 다시 시도 | DownloadSection | |
+| RESUME DOWNLOAD (n%) | 이어받기 (n%) | DownloadSection | 이어받기 is the usual Korean term for resuming a partial download. |
+| CHOOSE BRANCH | 브랜치 선택 | DownloadSection | After a fatal failure on the saved branch. |
+| PAUSE | 일시정지 | DownloadSection | Matches the status "다운로드 일시정지됨" and Android media controls. |
 | UPDATE GAME FILES | 게임 파일 업데이트 | DownloadSection | |
 | PLAY / LAUNCH | **게임 시작** | main button | **Decision, review.** Korean mobile game launchers and patchers (Nexon, Netmarble, Kakao Games) show "게임 시작" after the patch step, and this launcher is exactly that: download, then hand off to the game. It is also unambiguous for people who do not read "플레이" as a media Play button. Alternatives: 플레이 (Steam, Battle.net and Riot say this; 3 syllables, matches desktop habits), 시작 (too generic), 실행 (Epic). |
 | RESTART APP | 앱 재시작 | main button | The old Korean copy already said "앱 재시작 필요". |

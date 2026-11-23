@@ -37,7 +37,7 @@ public class DownloadSection : VBoxContainer
 
         // Shown only while a download is running. Pausing keeps everything
         // downloaded so far; the main button then reads RESUME DOWNLOAD.
-        _pauseButton = new StyledButton("PAUSE", scale, height: 40);
+        _pauseButton = new StyledButton(Loc.Tr("일시정지", "PAUSE"), scale, height: 40);
         _pauseButton.Visible = false;
         _pauseButton.Pressed += () =>
         {
