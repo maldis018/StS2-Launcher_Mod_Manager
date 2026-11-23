@@ -22,6 +22,12 @@
 
 스크린샷이 포함된 전체 안내는 [사용설명서](docs/USER_GUIDE.md)에 있습니다. 포크 버전 간 업그레이드는 APK 덮어쓰기 설치로 충분하며 세이브·로그인·게임 페이로드가 모두 보존됩니다.
 
+### StS2 Launcher Mod 에서 옮겨오기
+
+Redux 는 패키지 id 가 다른 별도 앱이라 StS2 Launcher Mod 의 내부 데이터(Steam 로그인, 다운로드한 게임 파일 약 3GB, 현재 세이브)에 접근할 수 없습니다. Redux 에서 다시 로그인하고 게임을 다시 받으세요. 세이브는 Steam 클라우드에서 돌아옵니다. Steam 클라우드를 쓰지 않았다면 먼저 이전 앱에서 **Local Backup** 을 눌러 두세요.
+
+첫 실행 시 (모든 파일 액세스 허용 후) Redux 가 `/storage/emulated/0/StS2LauncherMM/` 의 모드, 비활성 모드, `mod_config.json`, Local Backup, LAN 설정을 새 폴더로 복사할지 묻습니다. 복사만 하며 이전 폴더는 바꾸지 않고, 새 폴더에 이미 있는 항목은 덮어쓰지 않습니다. 로그는 복사하지 않습니다. 언제든 **MOD MANAGER > LOCAL > Import from StS2LauncherMM...** 에서 다시 실행할 수 있습니다.
+
 ## 업스트림과의 차이
 
 2026년 4월 `Ekyso/StS2-Launcher` 에서 분기했습니다. 아래는 전부 포크에서 추가된 것이며, 버전별 상세 내역은 [Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases)에 있습니다.

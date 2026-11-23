@@ -38,6 +38,7 @@ public class LauncherView
     // Exposed so the controller can use this Control as a parent when adding
     // overlays (e.g. CloudConflictDialog opened from the Save Manager button).
     public Control RootControl => _parent;
+    public float Scale => _scale;
 
     public LauncherView(Control parent, float scale)
     {

@@ -282,6 +282,14 @@ public class LauncherUI : Control
 
     public override void _Notification(int what)
     {
+        if (what == NotificationApplicationResumed)
+        {
+            // Back from the All Files Access settings page: create the external
+            // tree and offer the legacy-folder import now that we can read it.
+            AppPaths.EnsureExternalDirectories();
+            _controller?.OfferLegacyImportIfNeeded();
+            return;
+        }
         if (what != NotificationWMGoBackRequest)
             return;
 

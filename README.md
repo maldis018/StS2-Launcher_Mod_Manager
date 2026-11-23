@@ -22,6 +22,12 @@ An Android launcher + mod manager for **Slay the Spire 2**, built on a custom Go
 
 Full walkthrough with screenshots: [사용설명서 (USER_GUIDE.md)](docs/USER_GUIDE.md). Upgrading between fork versions is a drop-in APK install — saves, login, and the game payload are preserved.
 
+### Moving from StS2 Launcher Mod
+
+Redux is a separate app with its own package id, so it can't read StS2 Launcher Mod's private data: your Steam login, the downloaded game files (~3 GB) and your live saves stay with the old app. Sign in again and re-download the game in Redux; your saves come back from Steam Cloud. If you didn't use Steam Cloud, tap **Local Backup** in the old app first.
+
+On first launch (once All Files Access is granted), Redux offers to copy your mods, disabled mods, `mod_config.json`, Local Backup sets and LAN config from `/storage/emulated/0/StS2LauncherMM/` into its own folder. It only copies: the old folder is never changed, and nothing already in the new folder is overwritten. Logs are not copied. Run it again any time from **MOD MANAGER > LOCAL > Import from StS2LauncherMM...**.
+
 ## Differences from upstream
 
 The fork diverged from `Ekyso/StS2-Launcher` in April 2026. Everything below is fork-added; per-version details live on the [Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases).

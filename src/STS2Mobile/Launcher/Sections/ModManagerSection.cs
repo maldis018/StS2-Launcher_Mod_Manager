@@ -53,6 +53,7 @@ public class ModManagerSection : VBoxContainer
     private readonly StyledButton _importButton;
     private readonly StyledButton _refreshButton;
     private readonly StyledButton _permissionButton;
+    private readonly StyledButton _legacyImportButton;
 
     private readonly StyledButton _backButton;
     private readonly StyledButton _orientButton;
@@ -187,6 +188,13 @@ public class ModManagerSection : VBoxContainer
         _refreshButton.CustomMinimumSize = new Vector2((int)(100 * scale), 0);
         _refreshButton.Pressed += RefreshLocal;
         actionRow.AddChild(_refreshButton);
+
+        // Copies mods/backups/config from the old StS2LauncherMM folder. Only
+        // shown when that folder exists (see RefreshLocal).
+        _legacyImportButton = new StyledButton("Import from StS2LauncherMM...", scale, fontSize: 14);
+        _legacyImportButton.Visible = false;
+        _legacyImportButton.Pressed += OnLegacyImportPressed;
+        _localPane.AddChild(_legacyImportButton);
 
         var localScroll = new ScrollContainer();
         localScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -529,11 +537,13 @@ public class ModManagerSection : VBoxContainer
             );
             _permissionButton.Visible = true;
             _importButton.Disabled = true;
+            _legacyImportButton.Visible = false;
             return;
         }
 
         _permissionButton.Visible = false;
         _importButton.Disabled = _importInFlight;
+        _legacyImportButton.Visible = LegacyImportService.LegacyFolderExists();
         AppPaths.EnsureExternalDirectories();
 
         var scanned = ModScanner.Scan();
@@ -813,6 +823,20 @@ public class ModManagerSection : VBoxContainer
             ),
             WarnColor
         );
+    }
+
+    private async void OnLegacyImportPressed()
+    {
+        _legacyImportButton.Disabled = true;
+        try
+        {
+            await LegacyImportFlow.RunAsync(this, _scale, firstRun: false);
+        }
+        finally
+        {
+            _legacyImportButton.Disabled = false;
+            RefreshLocal();
+        }
     }
 
     private void OnImportPressed()
