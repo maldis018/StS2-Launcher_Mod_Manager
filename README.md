@@ -2,205 +2,181 @@
 
 **English** | [한국어](README.ko.md)
 
-An Android launcher + mod manager for **Slay the Spire 2**, built on a custom Godot 4.5.1 engine with .NET/Mono and Harmony runtime patching. Log in with Steam, download the game, browse the Steam Workshop, and play with mods — all on your phone.
+Play **Slay the Spire 2** on Android, with mods. StS2 Launcher Redux signs in to Steam, downloads the game you own straight from Steam, and runs it on a custom Godot 4.5.1 engine build, adapting the desktop game for touch screens with Harmony runtime patches. It also manages your mods (including the Steam Workshop), Steam Cloud saves and local backups.
 
-**Current release: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
+**Latest release: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
 
-> **📖 사용설명서 (한국어)** — 설치부터 모드/세이브 관리까지 스크린샷과 함께 설명하는 단계별 가이드: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**
+> StS2 Launcher Redux is an unofficial fan project. It is not affiliated with, endorsed by, or supported by Mega Crit Games, the developer and publisher of Slay the Spire 2. You need a Steam account that owns the game; no game files are included in this repository or in the app.
 
-> **Fork notice**: StS2 Launcher Redux is a fork of [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) ("StS2 Launcher Mod"), which is itself a community fork of [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher). The upstream launcher's mod loader stopped working with newer game builds; this fork keeps mod loading compatible with each game update and adds Workshop support, save-data safety features, and mobile-UX improvements. See [Differences from upstream](#differences-from-upstream).
+## Install
 
-> **Disclaimer**: StS2 Launcher Redux is an unofficial fan project and is not affiliated with, endorsed by, or supported by Mega Crit Games.
->
-> Unofficial community project. Slay the Spire 2 is developed and published by Mega Crit Games. A valid Steam account that owns Slay the Spire 2 is required; game files are downloaded directly from Steam after authentication. No game assets are included in this repository.
+You need:
 
-## Getting started (players)
+- An arm64 Android phone or tablet running Android 7.0 or later
+- A Steam account that owns Slay the Spire 2
+- About 3 GB of free space for the game
 
-1. Download the latest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) and install it.
-2. Launch, grant "All files access", and log in with your Steam account (Steam Guard 2FA supported).
-3. Pick a Steam branch and download the game (~3 GB), then tap **PLAY**.
+Steps:
 
-Full walkthrough with screenshots: [사용설명서 (USER_GUIDE.md)](docs/USER_GUIDE.md). Upgrading between fork versions is a drop-in APK install — saves, login, and the game payload are preserved.
+1. Download the latest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) and install it (allow installs from your browser or file manager when Android asks).
+2. Open **StS2 Launcher Redux** and allow **All files access** when asked. Mods, backups and logs live in a shared folder, so the launcher needs it.
+3. Sign in with your Steam account. Steam Guard codes are supported, and the sign-in token is stored encrypted with the Android Keystore.
+4. Pick a Steam branch (normally `public`), download the game, then tap **PLAY**.
 
-### Moving from StS2 Launcher Mod
+To update, tap **CHECK LAUNCHER UPDATE** in the app (it also checks on start), or install a newer APK over the old one. Updates keep your sign-in, saves and downloaded game.
 
-Redux is a separate app with its own package id, so it can't read StS2 Launcher Mod's private data: your Steam login, the downloaded game files (~3 GB) and your live saves stay with the old app. Sign in again and re-download the game in Redux; your saves come back from Steam Cloud. If you didn't use Steam Cloud, tap **Local Backup** in the old app first.
+## Coming from StS2 Launcher Mod
 
-On first launch (once All Files Access is granted), Redux offers to copy your mods, disabled mods, `mod_config.json`, Local Backup sets and LAN config from `/storage/emulated/0/StS2LauncherMM/` into its own folder. It only copies: the old folder is never changed, and nothing already in the new folder is overwritten. Logs are not copied. Run it again any time from **MOD MANAGER > LOCAL > Import from StS2LauncherMM...**.
+Redux is a separate app (package `dev.aldis.sts2launcherredux`, folder `/storage/emulated/0/StS2LauncherRedux/`), so it installs next to StS2 Launcher Mod and Ekyso's StS2 Launcher instead of replacing them, and none of them share data.
 
-## Lineage
+Android doesn't let one app read another app's private data, so these stay with the old app:
 
-StS2 Launcher Redux is the third project in a line of forks. Each one installs as its own app with its own shared folder, so they can sit side by side on one phone.
+- your Steam sign-in: sign in again in Redux
+- the downloaded game (~3 GB): download it again in Redux
+- your live saves: they come back from Steam Cloud. If you didn't use Steam Cloud, tap **Local Backup** in the old app before you switch.
 
-| Project | Repository | Active | Package id / shared folder | What it added |
-|---|---|---|---|---|
-| StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | March 2026 (v0.1.0, v0.2.0) | `com.game.sts2launcher`, `/StS2Launcher` | The original: a custom Godot 4.5.1 .NET engine build that runs the game on Android, Harmony runtime patching ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), SteamKit2 sign-in and game download. |
-| StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | April to August 2026 (v0.2.1 to v0.4.2) | `com.game.sts2launcher.modmanager`, `/StS2LauncherMM` | Mod loading that keeps up with game updates, Steam Workshop, Steam Cloud and local-backup safety, mobile UX (see [Differences from upstream](#differences-from-upstream)). |
-| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | November 2026 on (v0.5.0+) | `dev.aldis.sts2launcherredux`, `/StS2LauncherRedux` | Forked from StS2 Launcher Mod v0.4.2 and maintained separately: new identity, import from `StS2LauncherMM`, English copy for Korean-only strings, CI release builds. |
+Everything in the old shared folder can come over. On first launch (once All files access is granted), Redux offers to copy your mods, disabled mods, `mod_config.json`, Local Backup sets and LAN config from `/storage/emulated/0/StS2LauncherMM/`. It only copies: the old folder is never changed, and nothing you already have in the new folder is overwritten. Logs are left behind. To run it again later, open **MOD MANAGER > LOCAL > Import from StS2LauncherMM...**.
 
-Credit for the engine port and the mod manager goes to Ekyso and iunius612; Redux builds on their work.
+## What it does
 
-## Differences from upstream
+**Steam and the game**
+- Steam sign-in through SteamKit2, with Steam Guard. No PC, Steam client or Steamworks SDK needed.
+- Game download straight from Steam's depots, with update checks and a branch picker (`public`, `public-beta`, ...). Switching branches does a clean re-download.
 
-The fork diverged from `Ekyso/StS2-Launcher` in April 2026. Everything below is fork-added; per-version details live on the [Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases).
+**Mods**
+- Mod loading that keeps working as the game updates. The game's own mod scanner is redirected to the shared `Mods` folder.
+- An in-app **Mod Hub**: browse, search and subscribe on the Steam Workshop, with automatic download, updates and dependency prompts.
+- Manual installs, `.zip` import, and **DISABLE** to hide a mod from the game without deleting it.
 
-### Mod loading that tracks game updates
+**Saves**
+- Full Steam Cloud sync. When local and cloud differ, you see them side by side (including a run in progress) and choose which one to keep, instead of a silent timestamp guess. This happens before **PLAY**, or any time from **SAVE MANAGER**.
+- Guards against the cloud being overwritten with empty or fresh saves.
+- **Local Backup**: manual snapshots (kept until you delete them) plus an automatic snapshot before every cloud sync, so a wrong choice can be undone.
 
-- The upstream reflection-based mod loader crashes on current game builds (renamed private fields). Replaced with a Harmony IL transpiler that redirects the game's own mod scanner to `/storage/emulated/0/StS2LauncherRedux/Mods/`.
-- Kept compatible through breaking game updates since then: v0.107 async-lowering changes (issue #47), v0.108 `ModelDb` contract change (issue #53), the v0.108 save-path helper signature change, and a general fix for init-setter properties under runtime IL re-emit that unblocked BaseLib 3.3.x (issue #55).
-- `tools/memberref-audit` statically audits our IL patches against a new game build before it ships, so signature breaks are caught before users hit them.
+**On your phone**
+- Touch controls and UI scaling, rotation, foldables (fold/unfold), split screen and ultra-wide screens.
+- Shader warmup and a persistent Vulkan pipeline cache to cut first-time stutters.
+- LAN multiplayer with a PC (see [LAN multiplayer](#lan-multiplayer)).
+- A **Debug** toggle that saves logs to the shared folder, so you can attach them to a bug report without adb.
 
-### Steam Workshop support (Mod Hub)
+## Mods
 
-Added in v0.3.34 (issue #58) — the **MOD MANAGER** button opens a full in-app Mod Hub:
+**From the Steam Workshop (easiest):** tap **MOD MANAGER** on the launch screen, find a mod on the **WORKSHOP** tab and subscribe. Downloads and updates happen automatically, and unsubscribing removes the mod.
 
-- **WORKSHOP tab** — browse/search the Workshop with sorting, tag filters, and infinite scroll; paste a Workshop URL/ID to find unlisted items; item detail pages with description, Steam change notes, discussions, and comments.
-- **SUBSCRIBED tab** — subscriptions sync with your Steam account; downloads, update detection, and dependency prompts are automatic. Unsubscribing removes the mod from the device.
-- **Mod stash (DISABLE)** — hide a mod from the game without deleting it (moved to `ModsDisabled/`, restored instantly with ENABLE, no re-download).
-- Downloads use SteamKit2 `PublishedFile` RPC + Steam depot CDN — no PC or Steamworks SDK involved.
-
-### Save-data safety
-
-- **Cloud-save destruction fix (issue #4)** — the upstream launcher could silently overwrite real Steam Cloud progress with fresh-default saves when the cloud file cache wasn't loaded yet. The cloud store now blocks until the cache is ready and falls back to local-only mode when it isn't.
-- **Save Manager (issues #4/#7)** — explicit conflict-resolution dialog replaces silent timestamp-based sync: side-by-side local/cloud summary cards (including the in-progress run) with an explicit Keep Local / Keep Cloud choice, on every PLAY and on demand via the **SAVE MANAGER** button.
-- **Cloud write guard + Local Backup (issue #36)** — empty/abnormal writes are blocked at the single cloud-upload funnel, and full-tree save snapshots are taken manually (**LOCAL BACKUP** button, kept indefinitely) and automatically before every cloud handshake (FIFO-capped), so a wrong sync choice is recoverable.
-
-### Launcher quality-of-life
-
-- **Self-update (issue #12)** — separate `CHECK GAME UPDATE` / `CHECK LAUNCHER UPDATE` buttons, automatic update check on boot, and an in-app APK download + install flow.
-- **Steam branch picker** — choose `public`, `public-beta`, etc. per download; switching branches forces a clean re-download to avoid delta corruption.
-- **Mobile UX** — sensor-based landscape rotation, layout reflow across fold/unfold, split-screen, portrait-aspect windows, and 21:9 displays, rewritten touch scrolling with fling, back-button guard, and virtual-keyboard-aware panels.
-- **Diagnostics without adb** — persistent Debug toggle captures logcat to `StS2LauncherRedux/Logs/` (auto-rotated) so users can attach logs to issues.
-
-### Mod-compatibility shims
-
-- **BaseLib** — v3.x used to hard-crash the game on Android with a black screen (issues #8/#32/#55). Current builds load and run BaseLib and its dependents, with one remaining trade-off: BaseLib's **async hook system** (`AfterCardPlayed` etc.) is intentionally no-op'd on mobile because its state-machine IL surgery corrupts memory on Mono Android. Mods that add content through BaseLib's non-hook APIs work normally; mods that rely on async hooks load but those triggers never fire.
-- **`release_info.json` on Android (issue #9)** — fixes the `????` main-menu build label and LAN version-mismatch handshake failures.
-- **LAN multiplayer fixes** — 4-player sessions (issue #18), persistent client netId (issue #26), and cloud "zombie run" cleanup (issue #31).
-
-### Separate app identity
-
-Package id is `dev.aldis.sts2launcherredux`, the app label is **"StS2 Launcher Redux"**, and external storage lives under `/storage/emulated/0/StS2LauncherRedux/`. It installs alongside Ekyso's launcher and StS2 Launcher Mod (`com.game.sts2launcher.modmanager`, `/storage/emulated/0/StS2LauncherMM/`) without sharing data.
-
-## Features
-
-- **Steam authentication** — SteamKit2 login with Steam Guard 2FA; refresh tokens encrypted at rest via Android Keystore (AES-256-GCM, hardware-backed TEE).
-- **Game download** — Steam depot download with update checking and branch selection.
-- **Steam Workshop** — in-app browse, subscribe, auto-download/update, and mod enable/disable.
-- **Cloud saves** — full Steam Cloud sync via SteamKit2's CCloud API with an explicit conflict-resolution UI and destructive-write guards.
-- **Local backup** — manual and automatic full-tree save snapshots to external storage.
-- **Launcher self-update** — in-app update check and APK install flow.
-- **Mobile adaptation** — touch input, UI scaling, foldable/rotation layout handling, and app lifecycle handling via Harmony runtime patches.
-- **LAN multiplayer** — UDP broadcast discovery and manual IP join (see [LAN Multiplayer](#lan-multiplayer)).
-- **Shader warmup** — Vulkan pipeline cache persistence and canvas ubershaders to eliminate first-encounter stutters.
-
-## Installing mods
-
-**Workshop (recommended)** — tap **MOD MANAGER** on the launch screen, browse or search the WORKSHOP tab, and subscribe. Download, installation, and updates are automatic. See the [사용설명서](docs/USER_GUIDE.md) for details.
-
-**Manual install** — for mods not on the Workshop, drop each mod as its own subfolder under `/storage/emulated/0/StS2LauncherRedux/Mods/` using any file manager. A valid mod folder contains the mod's `.dll`, optional `.pck`, and a `<ModId>.json` manifest at its root — the same layout PC users put in `Steam\steamapps\common\Slay the Spire 2\mods\`.
+**By hand:** put each mod in its own folder under `/storage/emulated/0/StS2LauncherRedux/Mods/`. A mod folder holds the mod's `.dll`, an optional `.pck` and a `<ModId>.json` manifest, the same layout PC players use in `Steam\steamapps\common\Slay the Spire 2\mods\`. Some phone file managers (Samsung's My Files, for one) can't see this folder; [ZArchiver](https://play.google.com/store/apps/details?id=ru.zdevs.zarchiver) can. You can also use **Import Mod (.zip)...** in **MOD MANAGER > LOCAL**.
 
 ![Mods folder layout](docs/images/mods_folder.jpg)
 
-Launch the game and tap PLAY; accept the game's built-in "Load mods?" dialog and the game restarts once through the launcher with mods loaded. If mods don't appear, turn on the Debug toggle and check the log for `[Mods]` lines.
+Tap **PLAY** and accept the game's "Load mods?" prompt. The game restarts once through the launcher with mods loaded. If a mod doesn't show up, turn on **Debug** and look for `[Mods]` lines in the log.
 
-### Known incompatibilities
+**Known limits:**
+- **BaseLib** and the mods built on it load and run, but BaseLib's async hooks (`AfterCardPlayed` and the like) are switched off on Android because they corrupt memory under Mono. Content added through BaseLib's other APIs works; triggers that rely on those hooks never fire.
+- Mods that call **Steamworks.NET** directly (QuickReload, for example) crash on **PLAY**: Valve doesn't ship the Steamworks library for Android. Some Steamworks features could be bridged through SteamKit2 for a specific mod, so open an issue if one matters to you. P2P networking, the overlay and Steam Input can't be.
 
-Mods that import **Steamworks.NET** directly (e.g. QuickReload) crash on PLAY — Valve does not ship the Steamworks SDK native library for Android, and the launcher's stub `libsteam_api.so` only satisfies the linker. Several Steamworks API surfaces (SteamID, auth tickets, achievements/stats, cloud, UGC, leaderboards) can in principle be bridged through SteamKit2 and may be shimmed per-mod — file an issue if a specific mod needs one. Genuinely unbridgeable: SteamNetworkingSockets P2P, the Steam overlay, and SteamInput.
+## LAN multiplayer
 
-## Release history
+Put the phone and the PC on the same local network. The phone finds games on the network by itself, or you can type the PC's IP address.
 
-Per-version changelogs (in Korean, with technical notes) are on the [Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases). Fork-change details for 0.2.x–0.3.11 that used to live in this README are preserved in the [git history](https://github.com/iunius612/StS2-Launcher_Mod_Manager/blob/v0.3.23/README.md).
+On the PC, add `--fastmp` to the game's launch options (**Steam > Slay the Spire 2 > Properties > Launch Options**). Keep both on the **same Steam branch**: cloud saves from one branch can't be read on another, and Steam only shows a generic sync conflict.
 
-## Development
+## Your files
+
+Everything you might want to see or back up lives in `/storage/emulated/0/StS2LauncherRedux/`:
+
+| Folder | What's in it |
+|---|---|
+| `Mods/` | Installed mods, plus `mod_config.json` (load order, enabled state, Workshop origin) |
+| `ModsDisabled/` | Mods hidden with **DISABLE** |
+| `Saves/manual/`, `Saves/auto/` | Local Backup snapshots, one folder per backup, named by date and time |
+| `Config/` | LAN settings (`lan_client_id.cfg`) |
+| `Logs/` | Debug logs, rotated automatically |
+
+The game itself, your sign-in and your live saves are in the app's private storage, so uninstalling the app removes them. The shared folder stays.
+
+## Help and bug reports
+
+A step-by-step guide with screenshots is in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (Korean, written for StS2 Launcher Mod; nearly all of it applies to Redux).
+
+To report a bug, turn on **Debug**, reproduce the problem, and attach the newest file from `StS2LauncherRedux/Logs/` to an [issue](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues).
+
+## Project history
+
+Redux is the third project in a line of forks:
+
+| Project | Repository | Active | What it brought |
+|---|---|---|---|
+| StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | March 2026 (v0.1.0, v0.2.0) | The original port: the custom Godot engine build, Harmony runtime patching ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), Steam sign-in and game download |
+| StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | April to August 2026 (v0.2.1 to v0.4.2) | Mod loading for current game builds, the Workshop Mod Hub, save safety (conflict choice, write guards, Local Backup), launcher self-update, foldable and mobile UX work, LAN fixes |
+| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | November 2026 on (v0.5.0+) | Forked from StS2 Launcher Mod v0.4.2 and maintained separately: its own app identity and folder, import from StS2 Launcher Mod, English text for Korean-only messages, automated release builds |
+
+The engine port and the mod manager are the work of Ekyso and iunius612. Release notes up to v0.4.2 (in Korean, with technical detail) are on [StS2 Launcher Mod's Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases); Redux releases are on [this repo's Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases).
+
+## Building from source
 
 ### How it works
 
-At startup, `STS2Mobile.dll` is loaded via `coreclr_create_delegate` and applies [Harmony](https://github.com/pardeike/Harmony) patches to adapt the desktop game for mobile. The launcher intercepts `GameStartupWrapper()` to present a Steam login screen before the game starts.
+At startup the engine loads `STS2Mobile.dll` (this repo's C# project, `src/STS2Mobile/`) through `coreclr_create_delegate`. It applies Harmony patches that adapt the desktop game to mobile, and intercepts `GameStartupWrapper()` to show the launcher before the game starts.
 
-- **Launcher-only mode** — with no game files present, a minimal `bootstrap.pck` provides the launcher UI for Steam login and game download.
-- **Normal mode** — with game files downloaded, all patches apply against `sts2.dll` and the game runs natively after authentication.
+- **Launcher-only mode:** with no game files yet, a minimal `bootstrap.pck` (just a `project.godot`) brings up the .NET runtime and the launcher UI for sign-in and download.
+- **Normal mode:** once the game is downloaded, the patches apply against the game's `sts2.dll` and the game runs natively.
 
-### Engine patches
+The custom engine adds a persistent Vulkan pipeline cache (saved when the app loses focus, so Android killing the process doesn't force recompiles) and canvas ubershaders (no first-time 2D effect stutters). Native stubs in `src/stubs/` stand in for desktop-only libraries (Steamworks, Sentry) so the linker is satisfied.
 
-Custom patches to the Godot 4.5.1 engine source for Android-specific issues:
-
-- **Vulkan pipeline cache persistence** — saves compiled pipelines when the app loses focus, preventing recompilation after Android kills the process.
-- **Canvas ubershaders** — ubershader fallback for 2D rendering, eliminating first-encounter VFX stutters from blocking pipeline compilation.
-
-### Project structure
+### Layout
 
 ```
-src/STS2Mobile/
-  ModEntry.cs              # Entry point ([UnmanagedCallersOnly] Apply())
-  PatchHelper.cs           # Shared patch utility + logging
-  Patches/                 # Harmony patches (one file per concern)
-  Launcher/                # Programmatic Godot UI (MVC) incl. Mod Hub / Workshop
-  Steam/                   # SteamKit2 login, depot download, cloud saves, Workshop
-src/stubs/                 # Native library stubs (Steam API, Sentry)
-android/                   # Godot Android gradle project
-  src/.../GodotApp.java    # Activity, assembly setup, Keystore encryption
-  assets/bootstrap.pck     # Minimal PCK for launcher-only mode
-tools/memberref-audit/     # Static IL audit of patches vs. a new game build
-scripts/                   # Build and tooling scripts
-docs/                      # User guide (Korean) + images
+src/STS2Mobile/            C# patcher and launcher
+  ModEntry.cs              entry point ([UnmanagedCallersOnly] Apply())
+  Patches/                 Harmony patches, one file per concern
+  Launcher/                launcher UI built in code, incl. the Mod Hub
+  Steam/                   SteamKit2 sign-in, depot download, cloud saves, Workshop
+  Modding/                 mod scanning, import, Workshop install
+src/stubs/                 native library stubs
+android/                   Godot Android Gradle project (GodotApp.java: activity,
+                           Keystore encryption, storage, log capture)
+art/icon/                  icon sources and the Android icon renderer
+scripts/ci/                build input fetch and APK build, used by CI and locally
+tools/memberref-audit/     checks the IL patches against a new game build
+docs/                      user guide (Korean) and images
 ```
 
-### Prerequisites
+### Build an APK
 
-- .NET 9 SDK
-- Android SDK + NDK (see `android/config.gradle` for versions)
-- Python 3 (for `make-bootstrap-pck.py` and SCons)
-- Original game files in `upstream/godot-export/`
-- Custom Godot engine build (see `scripts/build-godot.sh`)
-- FMOD SDK in `vendor/fmod-sdk/`
-
-### Building
-
-> **Note**: the build requires binaries that are not in this repository. The custom Godot engine is based on [godotengine/godot](https://github.com/godotengine/godot) and Harmony on [Ekyso/Harmony](https://github.com/Ekyso/Harmony) (compiled for .NET 9) — see the upstream project for engine details. FMOD and Spine cannot be redistributed for licensing reasons; see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+You need the .NET 9 SDK, JDK 17, the Android SDK (platform 35, build-tools 35.0.0), Python 3, and your own copy of the game's `sts2.dll` from a Steam install (Windows build, `data_sts2_windows_x86_64/sts2.dll`). It is only a compile-time reference and is never packaged.
 
 ```bash
-bash scripts/build.sh
-```
+# 1. Fetch the binary build inputs that aren't in git (engine AAR, natives,
+#    BCL, FMOD, crypto JAR). All come from pinned public downloads.
+STS2_DLL=/path/to/sts2.dll bash scripts/ci/fetch-build-inputs.sh
 
-**Release builds (CI).** Pushing a `v*` tag that matches `export_version_name` runs `.github/workflows/release.yml`: `scripts/ci/fetch-build-inputs.sh` pulls every binary input from pinned public sources (Ekyso's v0.2.0 APK, StS2 Launcher Mod v0.4.2's FMOD 2.03.13 natives, the Godot 4.5.1 mono templates, dex2jar for `fmod.jar`), `sts2.dll` comes from a private store, and `scripts/ci/build-apk.sh` builds and signs the APK, which lands on a draft release. The same two scripts work locally for a fresh checkout (`STS2_DLL=/path/to/sts2.dll bash scripts/ci/fetch-build-inputs.sh`).
+# 2. Point Gradle at your Android SDK.
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-This runs the full pipeline: `dotnet publish` the patcher → copy published DLLs to `android/assets/dotnet_bcl/` → copy the Android crypto native lib to JNI libs → bump the version in `gradle.properties` → build the APK via `./gradlew assembleMonoRelease`.
+# 3. Build and sign. Any keystore works for a test build; a debug key can't
+#    update an install signed with the release key (uninstall first).
+RELEASE_KEYSTORE_FILE=~/.android/debug.keystore \
+RELEASE_KEYSTORE_ALIAS=androiddebugkey \
+RELEASE_KEYSTORE_PASSWORD=android \
+    bash scripts/ci/build-apk.sh
 
-Output: `android/build/outputs/apk/mono/release/StS2LauncherRedux-v<version>.apk`
-
-```bash
-# Install to a device
 adb install -r android/build/outputs/apk/mono/release/StS2LauncherRedux-v*.apk
-
-# Fresh install (clear saved credentials + cached assemblies)
-adb shell pm clear dev.aldis.sts2launcherredux
-
-# Regenerate bootstrap PCK (only if project.godot changes)
-python3 scripts/make-bootstrap-pck.py
-
-# Rebuild Godot engine (only if engine source changes)
-bash scripts/build-godot.sh
-
-# Rebuild native stubs (requires Android NDK)
-bash src/stubs/build_stubs.sh
 ```
 
-### Technical notes
+`scripts/build.sh` and `scripts/setup-deps.sh` are the older local scripts. `build.sh` also bumps the version and runs csharpier; `setup-deps.sh` takes FMOD from Ekyso's v0.2.0 APK, which is FMOD 2.02 and too old for current mods (see `android/libs/README.md`). Prefer the `scripts/ci/` scripts. Other one-off tasks:
 
-- Native library stubs (`src/stubs/`) provide no-op `.so` files for desktop-only libraries (Steamworks SDK, Sentry) so the linker is satisfied at runtime.
-- The bootstrap PCK is a minimal `project.godot` wrapper that enables .NET module initialization without game files.
-- The game's Sentry plugin has no `android.arm64` build, so it's disabled via PCK patching and Harmony patches.
-- GodotSharp interop is manually bootstrapped in `ModEntry.cs` since the Godot SDK source generators aren't available.
+```bash
+python3 scripts/make-bootstrap-pck.py   # regenerate bootstrap.pck
+bash scripts/build-godot.sh             # rebuild the custom engine
+bash src/stubs/build_stubs.sh           # rebuild native stubs (needs the NDK)
+uv run --with cairosvg python art/icon/render_android_icons.py   # re-render icons
+```
 
-## LAN Multiplayer
+### Releases
 
-Both devices must be on the same local network. The mobile app discovers nearby games via UDP broadcast, or you can enter the PC's IP address manually.
-
-On the PC, add `--fastmp` to the Steam launch options: **Steam > Slay the Spire 2 > Properties > Launch Options** → `--fastmp`. This enables the fast multiplayer mode the mobile client expects.
-
-Keep PC and mobile on the **same Steam branch** — cloud saves uploaded from one branch are not readable by a client on another, and Steam shows a generic sync conflict with no auto-recovery.
+1. Set `export_version_name` and `export_version_code` in `android/gradle.properties`. The code is major×10000 + minor×100 + patch (0.5.0 is 500) and must only go up.
+2. Commit, tag `vX.Y.Z` (it must match `export_version_name`) and push the tag.
+3. `.github/workflows/release.yml` builds and signs the APK and attaches it, with its SHA-256, to a **draft** release. The in-app update check only sees a release once the draft is published.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for third-party dependency licenses. FMOD requires a commercial license if your project generates revenue; Spine Runtimes require a valid Spine Editor license.
+[MIT](LICENSE). Third-party licenses are listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). FMOD and Spine are proprietary and can't be redistributed from this repository: FMOD needs a commercial license if a project makes money, and the Spine Runtimes need a Spine Editor license.
