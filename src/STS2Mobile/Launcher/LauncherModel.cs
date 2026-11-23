@@ -27,10 +27,6 @@ public class LauncherModel : IDisposable
     private CancellationTokenSource _qrCts;
     private DepotDownloader _downloader;
     private CancellationTokenSource _downloadCts;
-
-    // Highest DownloadedBytes the current download has reported in any
-    // auto-resume round (updated from download worker threads).
-    private long _downloadPeakBytes;
     private TaskCompletionSource<bool> _launchTcs;
     private TaskCompletionSource<string> _codeTcs;
     private SessionState _state = SessionState.Disconnected;
@@ -465,13 +461,8 @@ public class LauncherModel : IDisposable
         _downloader?.Dispose();
         _downloader = new DepotDownloader(_connection, _dataDir);
         _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
-        _downloader.ProgressChanged += p =>
-        {
-            RaiseDownloadPeak(Interlocked.Read(ref p.DownloadedBytes));
-            DownloadProgressChanged?.Invoke(p);
-        };
+        _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
         _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
-        Interlocked.Exchange(ref _downloadPeakBytes, 0);
 
         _downloadCts = new CancellationTokenSource();
         var token = _downloadCts.Token;
@@ -487,8 +478,9 @@ public class LauncherModel : IDisposable
             // `round` counts consecutive rounds that fetched nothing new, so the
             // cap only ends a download that is truly stuck; a flaky connection
             // that keeps making progress keeps going. A round made progress when
-            // DownloadedBytes went past the highest value any earlier round
-            // reached (re-counting resumed chunks only gets back to it).
+            // it fetched chunk data from the CDN (DepotDownloader.FetchedBytes
+            // grew). Chunks resumed from partial files or files that were
+            // already complete don't count, since they were fetched earlier.
             int round = 0;
             long progressMark = 0;
             while (true)
@@ -500,15 +492,15 @@ public class LauncherModel : IDisposable
                 }
                 catch (Exception ex) when (DownloadResilience.IsTransient(ex, token))
                 {
-                    long peak = Interlocked.Read(ref _downloadPeakBytes);
-                    if (peak > progressMark)
+                    long fetched = _downloader.FetchedBytes;
+                    if (fetched > progressMark)
                     {
                         if (round > 0)
                             PatchHelper.Log(
-                                $"[Launcher] Download made progress ({FormatSize(peak)}); auto-resume count reset"
+                                $"[Launcher] Download made progress ({FormatSize(fetched - progressMark)} fetched); auto-resume count reset"
                             );
                         round = 0;
-                        progressMark = peak;
+                        progressMark = fetched;
                     }
                     if (round >= AutoResumeDelays.Length)
                         throw;
@@ -539,18 +531,6 @@ public class LauncherModel : IDisposable
         {
             DownloadFailed?.Invoke(ex.Message);
             PatchHelper.Log($"[Launcher] Download error: {ex}");
-        }
-    }
-
-    private void RaiseDownloadPeak(long bytes)
-    {
-        long seen = Interlocked.Read(ref _downloadPeakBytes);
-        while (bytes > seen)
-        {
-            long prev = Interlocked.CompareExchange(ref _downloadPeakBytes, bytes, seen);
-            if (prev == seen)
-                return;
-            seen = prev;
         }
     }
 

@@ -71,6 +71,14 @@ public class DepotDownloader : IDisposable
     private PendingDownload _pending;
     private long _resumedBytes;
 
+    // Chunk bytes fetched from the CDN and written to a partial file by this
+    // instance, over all attempts. Never reset: LauncherModel compares it
+    // between auto-resume rounds to tell real progress from a stalled round.
+    // DownloadedBytes can't serve for that, since every attempt restarts it
+    // and counts only part of what earlier attempts already finished.
+    private long _fetchedBytes;
+    public long FetchedBytes => Interlocked.Read(ref _fetchedBytes);
+
     private readonly ResiliencePipeline _cdnPipeline;
     private readonly ResiliencePipeline _steamPipeline;
 
@@ -798,6 +806,7 @@ public class DepotDownloader : IDisposable
                     unflushed = 0;
 
                 Interlocked.Add(ref _progress.DownloadedBytes, written);
+                Interlocked.Add(ref _fetchedBytes, written);
                 ReportProgress();
             }
 
