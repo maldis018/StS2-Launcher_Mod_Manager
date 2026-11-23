@@ -836,15 +836,25 @@ public class LauncherController
         _view.Actions.SetGameUpdateButtonDisabled(false);
     }
 
-    private Task<string> ShowBranchPickerAsync(
+    private async Task<string> ShowBranchPickerAsync(
         System.Collections.Generic.IReadOnlyList<SteamBranchInfo> branches,
         string currentBranch
     )
     {
-        var tcs = new TaskCompletionSource<string>();
+        var tcs = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var probeCts = new CancellationTokenSource();
+        BranchPickerDialog dialog = null;
+
+        // The image-cache repair only makes sense once game files exist (it wipes
+        // the texture import cache of an installed game), so the first-download
+        // picker doesn't offer it.
+        bool offerImageCacheRepair = LauncherModel.GameFilesReady();
+
         _runOnMainThread(() =>
         {
-            _view.ShowBranchPicker(
+            dialog = _view.ShowBranchPicker(
                 branches,
                 currentBranch,
                 onConfirmed: name => tcs.TrySetResult(name),
@@ -853,14 +863,47 @@ public class LauncherController
                 // picker closes itself before raising the event; here we
                 // resolve the picker's task as a cancel and chain the
                 // confirm-and-restart flow.
-                onAtlasWipeRequested: () =>
-                {
-                    tcs.TrySetResult(null);
-                    ShowAtlasWipeConfirm();
-                }
+                onAtlasWipeRequested: offerImageCacheRepair
+                    ? () =>
+                    {
+                        tcs.TrySetResult(null);
+                        ShowAtlasWipeConfirm();
+                    }
+                    : null
             );
         });
-        return tcs.Task;
+
+        // Fill in each row's game version while the dialog is open. Cancelled as
+        // soon as the user picks, so a slow CDN never delays the download.
+        var probeBranches = new System.Collections.Generic.List<string>();
+        foreach (var b in branches)
+        {
+            if (!b.IsPasswordProtected)
+                probeBranches.Add(b.Name);
+        }
+        var probe = _model.ProbeBranchVersionsAsync(
+            probeBranches,
+            (branch, version) =>
+                _runOnMainThread(() =>
+                {
+                    if (dialog != null && GodotObject.IsInstanceValid(dialog))
+                        dialog.SetVersion(branch, version);
+                }),
+            probeCts.Token
+        );
+
+        var picked = await tcs.Task;
+        probeCts.Cancel();
+        try
+        {
+            await probe;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Launcher] Branch version probe failed: {ex.Message}");
+        }
+        return picked;
     }
 
     private void ShowAtlasWipeConfirm()

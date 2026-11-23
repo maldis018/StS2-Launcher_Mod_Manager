@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using SteamKit2;
@@ -39,11 +40,18 @@ public class DepotDownloader : IDisposable
     private IReadOnlyList<Server> _servers;
     private int _serverIndex;
     private readonly Dictionary<(uint, string), string> _cdnAuthTokens = new();
-    private readonly Dictionary<uint, (ulong Code, DateTime Expiry)> _manifestRequestCodes = new();
+    // Keyed by (depot, manifest): request codes are issued per manifest, so a
+    // code cached for the public manifest must not be reused for a beta one
+    // (the branch version probe asks for several manifests of the same depot).
+    private readonly Dictionary<
+        (uint DepotId, ulong ManifestId),
+        (ulong Code, DateTime Expiry)
+    > _manifestRequestCodes = new();
     private readonly Dictionary<
         uint,
         SteamApps.PICSProductInfoCallback.PICSProductInfo
     > _appInfoCache = new();
+    private readonly Dictionary<uint, byte[]> _depotKeys = new();
 
     public event Action<DownloadProgress> ProgressChanged;
     public event Action<string> LogMessage;
@@ -112,23 +120,7 @@ public class DepotDownloader : IDisposable
             LastDownloadedBuildId =
                 branchInfo != KeyValue.Invalid ? branchInfo["buildid"]?.Value ?? "" : "";
 
-            Log("Getting CDN servers...");
-            var allServers = await ContentServerDirectoryService.LoadAsync(
-                _connection.Configuration,
-                ct
-            );
-            if (allServers == null || allServers.Count == 0)
-                throw new Exception("No CDN servers available");
-
-            _servers = allServers
-                .Where(s => s.Type == "SteamCache" || s.Type == "CDN")
-                .OrderBy(s => s.WeightedLoad)
-                .ToList();
-
-            if (_servers.Count == 0)
-                _servers = allServers.ToList();
-
-            Log($"Using {_servers.Count} CDN servers");
+            await EnsureServersAsync(ct);
 
             foreach (var (depotId, manifestId) in depots)
             {
@@ -355,7 +347,7 @@ public class DepotDownloader : IDisposable
     )
     {
         if (
-            _manifestRequestCodes.TryGetValue(depotId, out var cached)
+            _manifestRequestCodes.TryGetValue((depotId, manifestId), out var cached)
             && DateTime.UtcNow < cached.Expiry
         )
         {
@@ -374,7 +366,7 @@ public class DepotDownloader : IDisposable
                     + "Ensure the account owns this app."
             );
 
-        _manifestRequestCodes[depotId] = (code, DateTime.UtcNow.AddMinutes(5));
+        _manifestRequestCodes[(depotId, manifestId)] = (code, DateTime.UtcNow.AddMinutes(5));
         return code;
     }
 
@@ -389,53 +381,10 @@ public class DepotDownloader : IDisposable
 
         bool isUpdate = LoadCachedManifestId(depotId) != manifestId;
 
-        var keyResult = await _connection.Apps.GetDepotDecryptionKey(depotId, AppId);
-        if (keyResult.Result != EResult.OK)
-            throw new Exception($"Failed to get depot key for {depotId}: {keyResult.Result}");
-        var depotKey = keyResult.DepotKey;
-
-        var manifestRequestCode = await GetManifestRequestCodeAsync(depotId, manifestId, branch);
+        var depotKey = await GetDepotKeyAsync(depotId);
 
         Log($"Downloading manifest for depot {depotId}...");
-        DepotManifest manifest = null;
-        for (int attempt = 0; attempt < MaxRetries && manifest == null; attempt++)
-        {
-            var server = GetNextServer();
-            try
-            {
-                manifest = await _cdnClient.DownloadManifestAsync(
-                    depotId,
-                    manifestId,
-                    manifestRequestCode,
-                    server,
-                    depotKey
-                );
-            }
-            catch (SteamKitWebRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
-            {
-                var token = await GetCdnAuthToken(depotId, server);
-                if (token != null)
-                {
-                    manifest = await _cdnClient.DownloadManifestAsync(
-                        depotId,
-                        manifestId,
-                        manifestRequestCode,
-                        server,
-                        depotKey,
-                        cdnAuthToken: token
-                    );
-                }
-            }
-            catch (Exception ex) when (attempt < MaxRetries - 1)
-            {
-                Log($"Manifest download failed (attempt {attempt + 1}): {ex.Message}");
-            }
-        }
-
-        if (manifest == null)
-            throw new Exception(
-                $"Failed to download manifest for depot {depotId} after {MaxRetries} attempts"
-            );
+        var manifest = await DownloadManifestAsync(depotId, manifestId, branch, depotKey);
 
         var oldManifest = LoadCachedManifest(depotId);
 
@@ -559,81 +508,7 @@ public class DepotDownloader : IDisposable
                 ct.ThrowIfCancellationRequested();
 
                 var buffer = new byte[chunk.UncompressedLength];
-                int written = 0;
-
-                for (int attempt = 0; attempt < MaxRetries; attempt++)
-                {
-                    var server = GetNextServer();
-                    try
-                    {
-                        written = await _cdnClient.DownloadDepotChunkAsync(
-                            depotId,
-                            chunk,
-                            server,
-                            buffer,
-                            depotKey
-                        );
-
-                        if (!VerifyChunkHash(buffer, written, chunk))
-                        {
-                            if (attempt < MaxRetries - 1)
-                            {
-                                Log($"Chunk SHA-1 mismatch at offset {chunk.Offset}, retrying...");
-                                written = 0;
-                                continue;
-                            }
-                            throw new Exception(
-                                $"Chunk SHA-1 verification failed for {fileName} "
-                                    + $"at offset {chunk.Offset} after {MaxRetries} attempts"
-                            );
-                        }
-
-                        break;
-                    }
-                    catch (SteamKitWebRequestException ex)
-                        when (ex.StatusCode == HttpStatusCode.Forbidden)
-                    {
-                        var token = await GetCdnAuthToken(depotId, server);
-                        if (token != null)
-                        {
-                            written = await _cdnClient.DownloadDepotChunkAsync(
-                                depotId,
-                                chunk,
-                                server,
-                                buffer,
-                                depotKey,
-                                cdnAuthToken: token
-                            );
-
-                            if (!VerifyChunkHash(buffer, written, chunk))
-                            {
-                                if (attempt < MaxRetries - 1)
-                                {
-                                    Log(
-                                        $"Chunk SHA-1 mismatch at offset {chunk.Offset}, retrying..."
-                                    );
-                                    written = 0;
-                                    continue;
-                                }
-                                throw new Exception(
-                                    $"Chunk SHA-1 verification failed for {fileName} "
-                                        + $"at offset {chunk.Offset} after {MaxRetries} attempts"
-                                );
-                            }
-
-                            break;
-                        }
-                    }
-                    catch (Exception ex) when (attempt < MaxRetries - 1)
-                    {
-                        Log($"Chunk download failed (attempt {attempt + 1}): {ex.Message}");
-                    }
-                }
-
-                if (written == 0 && chunk.UncompressedLength > 0)
-                    throw new Exception(
-                        $"Failed to download chunk for {fileName} after {MaxRetries} attempts"
-                    );
+                int written = await DownloadChunkAsync(depotId, chunk, buffer, depotKey, fileName);
 
                 fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
                 fs.Write(buffer, 0, written);
@@ -788,6 +663,327 @@ public class DepotDownloader : IDisposable
             manifest.Serialize(fs);
         }
         File.WriteAllText(Path.Combine(_stateDir, $"{depotId}.id"), manifestId.ToString());
+    }
+
+    // Probes the game version (release_info.json "version") each branch would
+    // install, without downloading the game. Per branch this costs at most one
+    // depot manifest plus the release_info.json chunk (a few hundred bytes).
+    // Results are cached on disk by manifest id, so reopening the picker is free
+    // until a branch gets a new build, and a branch whose manifest matches the
+    // installed game is answered from the local file. Branches run one after
+    // another; onResult fires per branch with the version or null (unknown).
+    // Failures are per branch and only logged, since the picker still works
+    // without a version.
+    public async Task ProbeBranchVersionsAsync(
+        IEnumerable<string> branches,
+        Action<string, string> onResult,
+        CancellationToken ct = default
+    )
+    {
+        _connection.SuspendIdleTimeout();
+        try
+        {
+            var appInfo = await FetchAppInfoAsync();
+            var depotSection = appInfo.KeyValues["depots"];
+            var cache = LoadVersionCache();
+
+            foreach (var branch in branches)
+            {
+                ct.ThrowIfCancellationRequested();
+                string version = null;
+                try
+                {
+                    version = await ProbeBranchVersionAsync(depotSection, branch, cache, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    PatchHelper.Log($"[Depot] Version probe failed for {branch}: {ex.Message}");
+                }
+                onResult?.Invoke(branch, version);
+            }
+        }
+        finally
+        {
+            _connection.ResumeIdleTimeout();
+        }
+    }
+
+    private async Task<string> ProbeBranchVersionAsync(
+        KeyValue depotSection,
+        string branch,
+        Dictionary<string, string> cache,
+        CancellationToken ct
+    )
+    {
+        var depots = await ParseDepotsAsync(depotSection, branch);
+
+        foreach (var (_, manifestId) in depots)
+        {
+            if (cache.TryGetValue(manifestId.ToString(), out var cachedVersion))
+                return cachedVersion;
+        }
+
+        // Same manifest as the installed game: read the file already on disk.
+        foreach (var (depotId, manifestId) in depots)
+        {
+            if (LoadCachedManifestId(depotId) != manifestId)
+                continue;
+            var localPath = Path.Combine(_gameDir, ReleaseInfoFileName);
+            if (!File.Exists(localPath))
+                continue;
+            var localVersion = ParseReleaseInfoVersion(File.ReadAllBytes(localPath));
+            if (localVersion != null)
+            {
+                StoreVersion(cache, manifestId, localVersion);
+                return localVersion;
+            }
+        }
+
+        await EnsureServersAsync(ct);
+        foreach (var (depotId, manifestId) in depots)
+        {
+            ct.ThrowIfCancellationRequested();
+            var depotKey = await GetDepotKeyAsync(depotId);
+            var manifest = await DownloadManifestAsync(depotId, manifestId, branch, depotKey);
+            var file = manifest.Files?.FirstOrDefault(f =>
+                string.Equals(
+                    f.FileName.Replace('\\', '/'),
+                    ReleaseInfoFileName,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            );
+            if (file == null)
+                continue;
+            if (file.TotalSize > MaxReleaseInfoBytes)
+                return null;
+
+            var bytes = new byte[file.TotalSize];
+            foreach (var chunk in file.Chunks)
+            {
+                ct.ThrowIfCancellationRequested();
+                var buffer = new byte[chunk.UncompressedLength];
+                int written = await DownloadChunkAsync(
+                    depotId,
+                    chunk,
+                    buffer,
+                    depotKey,
+                    ReleaseInfoFileName
+                );
+                Array.Copy(buffer, 0, bytes, (long)chunk.Offset, written);
+            }
+
+            var version = ParseReleaseInfoVersion(bytes);
+            if (version != null)
+                StoreVersion(cache, manifestId, version);
+            return version;
+        }
+
+        return null;
+    }
+
+    private const string ReleaseInfoFileName = "release_info.json";
+    private const ulong MaxReleaseInfoBytes = 64 * 1024;
+
+    private static string ParseReleaseInfoVersion(byte[] json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (
+                doc.RootElement.TryGetProperty("version", out var v)
+                && v.ValueKind == JsonValueKind.String
+            )
+            {
+                var s = v.GetString()?.Trim();
+                return string.IsNullOrEmpty(s) ? null : s;
+            }
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
+    private string VersionCachePath => Path.Combine(_stateDir, "branch_versions.json");
+
+    private Dictionary<string, string> LoadVersionCache()
+    {
+        try
+        {
+            if (File.Exists(VersionCachePath))
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(
+                        File.ReadAllText(VersionCachePath)
+                    ) ?? new();
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Depot] Ignoring unreadable version cache: {ex.Message}");
+        }
+        return new();
+    }
+
+    private void StoreVersion(Dictionary<string, string> cache, ulong manifestId, string version)
+    {
+        cache[manifestId.ToString()] = version;
+        try
+        {
+            Directory.CreateDirectory(_stateDir);
+            File.WriteAllText(VersionCachePath, JsonSerializer.Serialize(cache));
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Depot] Failed to write version cache: {ex.Message}");
+        }
+    }
+
+    private async Task EnsureServersAsync(CancellationToken ct)
+    {
+        if (_servers != null && _servers.Count > 0)
+            return;
+
+        Log("Getting CDN servers...");
+        var allServers = await ContentServerDirectoryService.LoadAsync(
+            _connection.Configuration,
+            ct
+        );
+        if (allServers == null || allServers.Count == 0)
+            throw new Exception("No CDN servers available");
+
+        var servers = allServers
+            .Where(s => s.Type == "SteamCache" || s.Type == "CDN")
+            .OrderBy(s => s.WeightedLoad)
+            .ToList();
+        if (servers.Count == 0)
+            servers = allServers.ToList();
+
+        _servers = servers;
+        Log($"Using {_servers.Count} CDN servers");
+    }
+
+    private async Task<byte[]> GetDepotKeyAsync(uint depotId)
+    {
+        if (_depotKeys.TryGetValue(depotId, out var cached))
+            return cached;
+
+        var keyResult = await _connection.Apps.GetDepotDecryptionKey(depotId, AppId);
+        if (keyResult.Result != EResult.OK)
+            throw new Exception($"Failed to get depot key for {depotId}: {keyResult.Result}");
+        _depotKeys[depotId] = keyResult.DepotKey;
+        return keyResult.DepotKey;
+    }
+
+    private async Task<DepotManifest> DownloadManifestAsync(
+        uint depotId,
+        ulong manifestId,
+        string branch,
+        byte[] depotKey
+    )
+    {
+        var manifestRequestCode = await GetManifestRequestCodeAsync(depotId, manifestId, branch);
+
+        DepotManifest manifest = null;
+        for (int attempt = 0; attempt < MaxRetries && manifest == null; attempt++)
+        {
+            var server = GetNextServer();
+            try
+            {
+                manifest = await _cdnClient.DownloadManifestAsync(
+                    depotId,
+                    manifestId,
+                    manifestRequestCode,
+                    server,
+                    depotKey
+                );
+            }
+            catch (SteamKitWebRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+            {
+                var token = await GetCdnAuthToken(depotId, server);
+                if (token != null)
+                {
+                    manifest = await _cdnClient.DownloadManifestAsync(
+                        depotId,
+                        manifestId,
+                        manifestRequestCode,
+                        server,
+                        depotKey,
+                        cdnAuthToken: token
+                    );
+                }
+            }
+            catch (Exception ex) when (attempt < MaxRetries - 1)
+            {
+                Log($"Manifest download failed (attempt {attempt + 1}): {ex.Message}");
+            }
+        }
+
+        if (manifest == null)
+            throw new Exception(
+                $"Failed to download manifest for depot {depotId} after {MaxRetries} attempts"
+            );
+        return manifest;
+    }
+
+    // Downloads one chunk into buffer with server rotation, CDN-token retry on
+    // 403 and SHA-1 verification. Returns the number of bytes written.
+    private async Task<int> DownloadChunkAsync(
+        uint depotId,
+        DepotManifest.ChunkData chunk,
+        byte[] buffer,
+        byte[] depotKey,
+        string fileName
+    )
+    {
+        for (int attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            var server = GetNextServer();
+            int written;
+            try
+            {
+                written = await _cdnClient.DownloadDepotChunkAsync(
+                    depotId,
+                    chunk,
+                    server,
+                    buffer,
+                    depotKey
+                );
+            }
+            catch (SteamKitWebRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+            {
+                var token = await GetCdnAuthToken(depotId, server);
+                if (token == null)
+                    continue;
+                written = await _cdnClient.DownloadDepotChunkAsync(
+                    depotId,
+                    chunk,
+                    server,
+                    buffer,
+                    depotKey,
+                    cdnAuthToken: token
+                );
+            }
+            catch (Exception ex) when (attempt < MaxRetries - 1)
+            {
+                Log($"Chunk download failed (attempt {attempt + 1}): {ex.Message}");
+                continue;
+            }
+
+            if (VerifyChunkHash(buffer, written, chunk))
+                return written;
+            if (attempt == MaxRetries - 1)
+                throw new Exception(
+                    $"Chunk SHA-1 verification failed for {fileName} "
+                        + $"at offset {chunk.Offset} after {MaxRetries} attempts"
+                );
+            Log($"Chunk SHA-1 mismatch at offset {chunk.Offset}, retrying...");
+        }
+
+        if (chunk.UncompressedLength > 0)
+            throw new Exception(
+                $"Failed to download chunk for {fileName} after {MaxRetries} attempts"
+            );
+        return 0;
     }
 
     private void Log(string msg)
