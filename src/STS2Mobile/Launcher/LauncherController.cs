@@ -990,7 +990,7 @@ public class LauncherController
     }
 
     private const string ReleasesPageUrl =
-        "https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest";
+        "https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest";
 
     private async void OnCheckLauncherUpdatePressed() =>
         await RunLauncherUpdateCheck(showLatestDialog: true);
