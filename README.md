@@ -28,6 +28,18 @@ Redux is a separate app with its own package id, so it can't read StS2 Launcher 
 
 On first launch (once All Files Access is granted), Redux offers to copy your mods, disabled mods, `mod_config.json`, Local Backup sets and LAN config from `/storage/emulated/0/StS2LauncherMM/` into its own folder. It only copies: the old folder is never changed, and nothing already in the new folder is overwritten. Logs are not copied. Run it again any time from **MOD MANAGER > LOCAL > Import from StS2LauncherMM...**.
 
+## Lineage
+
+StS2 Launcher Redux is the third project in a line of forks. Each one installs as its own app with its own shared folder, so they can sit side by side on one phone.
+
+| Project | Repository | Active | Package id / shared folder | What it added |
+|---|---|---|---|---|
+| StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | March 2026 (v0.1.0, v0.2.0) | `com.game.sts2launcher`, `/StS2Launcher` | The original: a custom Godot 4.5.1 .NET engine build that runs the game on Android, Harmony runtime patching ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), SteamKit2 sign-in and game download. |
+| StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | April to August 2026 (v0.2.1 to v0.4.2) | `com.game.sts2launcher.modmanager`, `/StS2LauncherMM` | Mod loading that keeps up with game updates, Steam Workshop, Steam Cloud and local-backup safety, mobile UX (see [Differences from upstream](#differences-from-upstream)). |
+| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | November 2026 on (v0.5.0+) | `dev.aldis.sts2launcherredux`, `/StS2LauncherRedux` | Forked from StS2 Launcher Mod v0.4.2 and maintained separately: new identity, import from `StS2LauncherMM`, English copy for Korean-only strings, CI release builds. |
+
+Credit for the engine port and the mod manager goes to Ekyso and iunius612; Redux builds on their work.
+
 ## Differences from upstream
 
 The fork diverged from `Ekyso/StS2-Launcher` in April 2026. Everything below is fork-added; per-version details live on the [Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases).

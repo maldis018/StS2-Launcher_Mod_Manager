@@ -28,6 +28,18 @@ Redux 는 패키지 id 가 다른 별도 앱이라 StS2 Launcher Mod 의 내부 
 
 첫 실행 시 (모든 파일 액세스 허용 후) Redux 가 `/storage/emulated/0/StS2LauncherMM/` 의 모드, 비활성 모드, `mod_config.json`, Local Backup, LAN 설정을 새 폴더로 복사할지 묻습니다. 복사만 하며 이전 폴더는 바꾸지 않고, 새 폴더에 이미 있는 항목은 덮어쓰지 않습니다. 로그는 복사하지 않습니다. 언제든 **MOD MANAGER > LOCAL > Import from StS2LauncherMM...** 에서 다시 실행할 수 있습니다.
 
+## 계보
+
+StS2 Launcher Redux 는 포크 계보의 세 번째 프로젝트입니다. 각 프로젝트는 별도 앱과 별도 공유 폴더를 쓰므로 한 휴대폰에 나란히 설치할 수 있습니다.
+
+| 프로젝트 | 저장소 | 활동 시기 | 패키지 id / 공유 폴더 | 추가한 것 |
+|---|---|---|---|---|
+| StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | 2026년 3월 (v0.1.0, v0.2.0) | `com.game.sts2launcher`, `/StS2Launcher` | 원조: 안드로이드에서 게임을 실행하는 커스텀 Godot 4.5.1 .NET 엔진 빌드, Harmony 런타임 패칭 ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), SteamKit2 로그인과 게임 다운로드. |
+| StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | 2026년 4월 ~ 8월 (v0.2.1 ~ v0.4.2) | `com.game.sts2launcher.modmanager`, `/StS2LauncherMM` | 게임 업데이트를 따라가는 모드 로딩, Steam 창작마당, Steam 클라우드·로컬 백업 안전장치, 모바일 UX ([업스트림과의 차이](#업스트림과의-차이) 참조). |
+| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | 2026년 11월 ~ (v0.5.0+) | `dev.aldis.sts2launcherredux`, `/StS2LauncherRedux` | StS2 Launcher Mod v0.4.2 에서 분기해 별도로 유지보수: 새 앱 아이덴티티, `StS2LauncherMM` 에서 가져오기, 한국어 전용 문구의 영어 번역, CI 릴리즈 빌드. |
+
+엔진 포팅과 모드 매니저의 공로는 Ekyso 와 iunius612 에게 있으며, Redux 는 그 위에 만들어졌습니다.
+
 ## 업스트림과의 차이
 
 2026년 4월 `Ekyso/StS2-Launcher` 에서 분기했습니다. 아래는 전부 포크에서 추가된 것이며, 버전별 상세 내역은 [Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases)에 있습니다.
