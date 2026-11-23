@@ -4,7 +4,7 @@
 
 Play **Slay the Spire 2** on Android, with mods. StS2 Launcher Redux signs in to Steam, downloads the game you own straight from Steam, and runs it on a custom Godot 4.5.1 engine build, adapting the desktop game for touch screens with Harmony runtime patches. It also manages your mods (including the Steam Workshop), Steam Cloud saves and local backups.
 
-**Latest release: [v0.5.1](https://github.com/maldis018/sts2-launcher-redux/releases/latest)**
+**Latest release: [v0.5.2](https://github.com/maldis018/sts2-launcher-redux/releases/latest)**
 
 > StS2 Launcher Redux is an unofficial fan project. It is not affiliated with, endorsed by, or supported by Mega Crit Games, the developer and publisher of Slay the Spire 2. You need a Steam account that owns the game; no game files are included in this repository or in the app.
 
