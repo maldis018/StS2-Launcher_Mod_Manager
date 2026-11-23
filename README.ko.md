@@ -15,7 +15,7 @@
 ## 시작하기 (플레이어용)
 
 1. [Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest)에서 최신 `StS2Launcher-vX.Y.Z.apk` 를 받아 설치합니다.
-2. 실행 후 "모든 파일 액세스" 권한을 부여하고 Steam 계정으로 로그인합니다 (Steam Guard 2FA 지원).
+2. 실행 후 "모든 파일 액세스" 권한을 부여하고 다른 휴대폰이나 태블릿의 Steam 앱으로 화면의 QR 코드를 스캔해 로그인합니다. 이 경우 런처는 비밀번호를 다루지 않습니다. 휴대폰이 하나뿐이면 SIGN IN ON THIS PHONE 을 눌러 비밀번호를 입력하고 Steam 앱에서 요청을 승인하세요 (Steam Guard 코드도 지원). 비밀번호는 저장되지 않습니다.
 3. Steam 브랜치를 선택해 게임(~3GB)을 다운로드하고 **PLAY** 를 누릅니다.
 
 스크린샷이 포함된 전체 안내는 [사용설명서](docs/USER_GUIDE.md)에 있습니다. 포크 버전 간 업그레이드는 APK 덮어쓰기 설치로 충분하며 세이브·로그인·게임 페이로드가 모두 보존됩니다.
@@ -64,7 +64,7 @@ v0.3.34 (issue #58) 추가 — **MOD MANAGER** 버튼이 인앱 Mod Hub 를 엽�
 
 ## 기능
 
-- **Steam 인증** — SteamKit2 로그인 + Steam Guard 2FA; 리프레시 토큰은 Android Keystore (AES-256-GCM, 하드웨어 TEE) 로 암호화 저장.
+- **Steam 인증** — SteamKit2 기반 비밀번호 없는 QR 로그인 (다른 기기의 Steam 앱으로 스캔), 휴대폰 하나만 있을 때는 비밀번호 입력 후 Steam 앱 승인 또는 Steam Guard 코드로 로그인; 비밀번호는 저장하지 않음; 리프레시 토큰은 Android Keystore (AES-256-GCM, 하드웨어 TEE) 로 암호화 저장.
 - **게임 다운로드** — Steam depot 다운로드 + 업데이트 확인 + 브랜치 선택.
 - **Steam 창작마당** — 인앱 검색·구독·자동 다운로드/업데이트·모드 보관.
 - **클라우드 세이브** — SteamKit2 CCloud API 기반 전체 Steam Cloud 동기화 + 명시적 충돌 해결 UI + 파괴적 쓰기 가드.

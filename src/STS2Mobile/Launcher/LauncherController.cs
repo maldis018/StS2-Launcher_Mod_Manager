@@ -42,6 +42,17 @@ public class LauncherController
     // timing.
     private bool _cloudOpInProgress;
 
+    // Login screen mode. Default is the password-free QR sign-in (scanned from
+    // another device); true once the user picks SIGN IN ON THIS PHONE (the
+    // single-phone route: password, then approve in the Steam app), until they
+    // switch back.
+    private bool _passwordLoginMode;
+
+    // Latest challenge URL from the pending QR sign-in, so re-showing the login
+    // stage (state changes, Mod Hub back) redraws the same code instead of
+    // starting a new session.
+    private string _qrChallengeUrl;
+
     public LauncherController(
         LauncherModel model,
         LauncherView view,
@@ -66,8 +77,32 @@ public class LauncherController
             _runOnMainThread(() =>
             {
                 _view.Login.Visible = false;
+                _view.QrLogin.Visible = false;
                 _view.Code.Show(wasIncorrect);
             });
+        _model.QrChallengeChanged += url =>
+            _runOnMainThread(() =>
+            {
+                _qrChallengeUrl = url;
+                if (_view.QrLogin.Visible)
+                    _view.QrLogin.SetChallenge(url);
+            });
+        _model.QrLoginFailed += reason =>
+            _runOnMainThread(() =>
+            {
+                _qrChallengeUrl = null;
+                if (_view.QrLogin.Visible)
+                    _view.QrLogin.ShowFailed(reason);
+            });
+        _model.DeviceConfirmationNeeded += () =>
+            _runOnMainThread(() =>
+                _view.SetStatus(
+                    Loc.Tr(
+                        "Steam 앱에서 로그인을 승인해 주세요",
+                        "Approve this sign-in in your Steam app"
+                    )
+                )
+            );
         _model.DownloadProgressChanged += p =>
             _runOnMainThread(() =>
             {
@@ -159,6 +194,9 @@ public class LauncherController
             });
 
         _view.Login.LoginRequested += OnLoginPressed;
+        _view.Login.QrLoginRequested += () => SetPasswordLoginMode(false);
+        _view.QrLogin.PasswordLoginRequested += () => SetPasswordLoginMode(true);
+        _view.QrLogin.RefreshRequested += StartQrLogin;
         _view.Code.CodeSubmitted += OnCodeSubmitPressed;
         _view.Download.DownloadRequested += OnDownloadPressed;
         _view.Actions.LaunchPressed += OnLaunchPressed;
@@ -253,16 +291,53 @@ public class LauncherController
                 break;
 
             case FastPathResult.ShowLogin:
-                ShowLoginStage("Enter your Steam credentials");
+                ShowLoginStage(LoginPrompt);
                 break;
         }
     }
 
+    private string LoginPrompt =>
+        _passwordLoginMode
+            ? "Enter your Steam credentials"
+            : Loc.Tr("Steam에 로그인하세요", "Sign in to Steam");
+
     private void ShowLoginStage(string status)
     {
         _view.SetStatus(status);
-        _view.Login.Visible = true;
-        _view.Login.SetDisabled(false);
+        if (_passwordLoginMode)
+        {
+            _view.QrLogin.Visible = false;
+            _view.Login.Visible = true;
+            _view.Login.SetDisabled(false);
+            return;
+        }
+
+        _view.Login.Visible = false;
+        if (_model.QrLoginPending)
+        {
+            // Same session still waiting: just bring its code back.
+            _view.QrLogin.Visible = true;
+            if (_qrChallengeUrl != null)
+                _view.QrLogin.SetChallenge(_qrChallengeUrl);
+            return;
+        }
+        StartQrLogin();
+    }
+
+    // Starts a fresh QR sign-in (cancelling any pending one).
+    private void StartQrLogin()
+    {
+        _qrChallengeUrl = null;
+        _view.QrLogin.ShowStarting();
+        _ = _model.LoginWithQrAsync();
+    }
+
+    private void SetPasswordLoginMode(bool passwordMode)
+    {
+        _passwordLoginMode = passwordMode;
+        if (passwordMode)
+            _model.CancelQrLogin();
+        ShowLoginStage(LoginPrompt);
     }
 
     private void ShowLaunchStage(string text, bool showCloudSync, bool showUpdate)
@@ -410,7 +485,7 @@ public class LauncherController
         }
         else
         {
-            ShowLoginStage("Enter your Steam credentials");
+            ShowLoginStage(LoginPrompt);
         }
     }
 
@@ -484,7 +559,7 @@ public class LauncherController
                 break;
 
             case SessionState.WaitingForCredentials:
-                ShowLoginStage("Enter your Steam credentials");
+                ShowLoginStage(LoginPrompt);
                 break;
 
             case SessionState.Authenticating:
@@ -516,7 +591,7 @@ public class LauncherController
                 break;
 
             case SessionState.Disconnected:
-                ShowLoginStage("Enter your Steam credentials");
+                ShowLoginStage(LoginPrompt);
                 break;
         }
     }

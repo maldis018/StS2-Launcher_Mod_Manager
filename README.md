@@ -15,7 +15,7 @@ An Android launcher + mod manager for **Slay the Spire 2**, built on a custom Go
 ## Getting started (players)
 
 1. Download the latest `StS2Launcher-vX.Y.Z.apk` from the [Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest) and install it.
-2. Launch, grant "All files access", and log in with your Steam account (Steam Guard 2FA supported).
+2. Launch, grant "All files access", and sign in by scanning the on-screen QR code with the Steam app on another phone or tablet, so the launcher never sees your password. With only one phone, use SIGN IN ON THIS PHONE: enter your password and approve the request in the Steam app (Steam Guard codes are also supported). The password is never stored.
 3. Pick a Steam branch and download the game (~3 GB), then tap **PLAY**.
 
 Full walkthrough with screenshots: [사용설명서 (USER_GUIDE.md)](docs/USER_GUIDE.md). Upgrading between fork versions is a drop-in APK install — saves, login, and the game payload are preserved.
@@ -64,7 +64,7 @@ Package id is `com.game.sts2launcher.modmanager` and external storage lives unde
 
 ## Features
 
-- **Steam authentication** — SteamKit2 login with Steam Guard 2FA; refresh tokens encrypted at rest via Android Keystore (AES-256-GCM, hardware-backed TEE).
+- **Steam authentication** — password-free QR sign-in via SteamKit2 (scanned with the Steam app on another device), with a single-phone password route approved in the Steam app or by Steam Guard code; the password is never stored; refresh tokens encrypted at rest via Android Keystore (AES-256-GCM, hardware-backed TEE).
 - **Game download** — Steam depot download with update checking and branch selection.
 - **Steam Workshop** — in-app browse, subscribe, auto-download/update, and mod enable/disable.
 - **Cloud saves** — full Steam Cloud sync via SteamKit2's CCloud API with an explicit conflict-resolution UI and destructive-write guards.
