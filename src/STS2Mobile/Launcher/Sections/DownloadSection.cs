@@ -7,8 +7,10 @@ namespace STS2Mobile.Launcher.Sections;
 public class DownloadSection : VBoxContainer
 {
     public event Action DownloadRequested;
+    public event Action PauseRequested;
 
     private readonly Button _downloadButton;
+    private readonly Button _pauseButton;
     private readonly ProgressBar _progressBar;
     private readonly Label _progressLabel;
 
@@ -29,6 +31,23 @@ public class DownloadSection : VBoxContainer
         _progressLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.65f));
         _progressLabel.Visible = false;
         AddChild(_progressLabel);
+
+        // Shown only while a download is running. Pausing keeps everything
+        // downloaded so far; the main button then reads RESUME DOWNLOAD.
+        _pauseButton = new StyledButton("PAUSE", scale, height: 40);
+        _pauseButton.Visible = false;
+        _pauseButton.Pressed += () =>
+        {
+            _pauseButton.Disabled = true;
+            PauseRequested?.Invoke();
+        };
+        AddChild(_pauseButton);
+    }
+
+    public void SetPauseVisible(bool visible)
+    {
+        _pauseButton.Visible = visible;
+        _pauseButton.Disabled = false;
     }
 
     public void SetProgress(double pct, string text)
@@ -65,5 +84,6 @@ public class DownloadSection : VBoxContainer
         _progressBar.Visible = false;
         _progressBar.Value = 0;
         _progressLabel.Visible = false;
+        _pauseButton.Visible = false;
     }
 }

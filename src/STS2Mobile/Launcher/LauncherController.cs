@@ -28,9 +28,12 @@ public class LauncherController
     // 로 마킹, DownloadCompleted 콜백에서 소비. true 였다면 NeedsRestartAfterBranchSwitch
     // set → Play 버튼이 Loc.Tr("앱 재시작 필요", "App restart required") 로 분기됨.
     private bool _pendingBranchSwitch;
-    // Set while an interrupted download waits to auto-resume; cleared on the
-    // first progress event after it continues.
+    // Set while the status line shows a retry or wait message instead of
+    // "Downloading..."; cleared by the first progress event after
+    // _statusHoldUntilMs so a brief retry message stays readable.
     private bool _downloadInterrupted;
+    private ulong _statusHoldUntilMs;
+    private string _lastLoggedDownloadFile;
 
     // Reentrancy guard shared by every handler that touches local saves or
     // Steam Cloud (Save Manager, Local Backup, Push, Pull) — all of them
@@ -109,21 +112,38 @@ public class LauncherController
         _model.DownloadProgressChanged += p =>
             _runOnMainThread(() =>
             {
-                if (_downloadInterrupted && p.DownloadedBytes > 0)
+                if (_downloadInterrupted && Time.GetTicksMsec() >= _statusHoldUntilMs)
                 {
                     _downloadInterrupted = false;
                     _view.SetStatus(Loc.Tr("다운로드 중...", "Downloading..."));
                 }
-                _view.Download.SetProgress(
-                    p.Percentage,
-                    $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)"
+
+                var text = p.Phase switch
+                {
+                    DownloadPhase.Preparing => Loc.Tr("다운로드 준비 중...", "Preparing download..."),
+                    DownloadPhase.Verifying => Loc.Tr("기존 파일 확인 중...", "Verifying existing files..."),
+                    DownloadPhase.Finishing => Loc.Tr("마무리 중...", "Finishing up..."),
+                    _ =>
+                        $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)",
+                };
+                _view.Download.SetProgress(p.Percentage, text);
+                DownloadBackgroundService.Update(
+                    p.Phase == DownloadPhase.Downloading ? p.Percentage : -1,
+                    text
                 );
-                _view.AppendLog(p.CurrentFile);
+
+                // Log each file once rather than on every progress event.
+                if (!string.IsNullOrEmpty(p.CurrentFile) && p.CurrentFile != _lastLoggedDownloadFile)
+                {
+                    _lastLoggedDownloadFile = p.CurrentFile;
+                    _view.AppendLog(p.CurrentFile);
+                }
             });
         _model.DownloadLogReceived += msg => _runOnMainThread(() => _view.AppendLog(msg));
         _model.DownloadCompleted += () =>
             _runOnMainThread(() =>
             {
+                DownloadBackgroundService.Stop();
                 bool wasBranchSwitch = _pendingBranchSwitch;
                 _view.SetStatus("Download complete! Restart to play.");
                 _view.Download.Visible = false;
@@ -164,31 +184,63 @@ public class LauncherController
         _model.DownloadFailed += msg =>
             _runOnMainThread(() =>
             {
+                DownloadBackgroundService.Stop();
                 if (msg == null)
                 {
                     _view.Download.Reset();
                     return;
                 }
                 _view.SetStatus($"Download failed: {msg}");
-                _view.Download.Reset("RETRY DOWNLOAD");
+                _view.Download.Reset(ResumeOrRetryButtonText());
             });
         _model.DownloadCancelled += () =>
             _runOnMainThread(() =>
             {
+                DownloadBackgroundService.Stop();
                 _view.SetStatus("Download cancelled");
+                _view.Download.SetPauseVisible(false);
                 _view.Download.SetButtonDisabled(false);
+            });
+        _model.DownloadPaused += () =>
+            _runOnMainThread(() =>
+            {
+                DownloadBackgroundService.Stop();
+                _downloadInterrupted = false;
+                _view.SetStatus(Loc.Tr("다운로드 일시정지됨", "Download paused"));
+                _view.Download.Reset(ResumeOrRetryButtonText());
+            });
+        _model.DownloadRetrying += info =>
+            _runOnMainThread(() =>
+            {
+                // Waiting for the network is the more important message.
+                if (_downloadInterrupted && Time.GetTicksMsec() < _statusHoldUntilMs)
+                    return;
+                _downloadInterrupted = true;
+                _statusHoldUntilMs = Time.GetTicksMsec() + 3000;
+                _view.SetStatus(
+                    Loc.Tr(
+                        $"다운로드 재시도 중 ({info.Attempt}/{info.MaxAttempts})",
+                        $"Retrying download ({info.Attempt}/{info.MaxAttempts})"
+                    )
+                );
             });
         _model.DownloadWaitingForNetwork += (round, secondsLeft) =>
             _runOnMainThread(() =>
             {
                 _downloadInterrupted = true;
-                _view.SetStatus(
+                _statusHoldUntilMs = 0;
+                var waitText =
                     secondsLeft > 0
                         ? Loc.Tr(
-                            $"네트워크 연결을 기다리는 중... {secondsLeft}초 후 재시도 ({round}/{LauncherModel.MaxAutoResumeRounds})",
-                            $"Waiting for network... retrying in {secondsLeft}s ({round}/{LauncherModel.MaxAutoResumeRounds})"
+                            $"네트워크 연결을 기다리는 중... {secondsLeft}초 후 재시도",
+                            $"Waiting for network... retrying in {secondsLeft}s"
                         )
-                        : Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...")
+                        : Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...");
+                DownloadBackgroundService.Update(-1, waitText);
+                _view.SetStatus(
+                    secondsLeft > 0
+                        ? $"{waitText} ({round}/{LauncherModel.MaxAutoResumeRounds})"
+                        : waitText
                 );
             });
         _model.UpdateCheckCompleted += hasUpdate =>
@@ -220,6 +272,7 @@ public class LauncherController
         _view.QrLogin.RefreshRequested += StartQrLogin;
         _view.Code.CodeSubmitted += OnCodeSubmitPressed;
         _view.Download.DownloadRequested += OnDownloadPressed;
+        _view.Download.PauseRequested += () => _model.PauseDownload();
         _view.Actions.LaunchPressed += OnLaunchPressed;
         _view.Actions.RetryPressed += OnRetryPressed;
         _view.Actions.LocalBackupPressed += OnLocalBackupPressed;
@@ -594,7 +647,25 @@ public class LauncherController
             case SessionState.LoggedIn:
                 _model.ConnectionResolved = true;
                 _view.SetStatus($"Logged in as {_model.AccountName}");
-                if (LauncherModel.GameFilesReady())
+                if (_model.IsDownloadRunning)
+                {
+                    // A reconnect mid-download: leave the progress UI alone.
+                    _view.Download.Visible = true;
+                }
+                else if (LauncherModel.HasPendingDownload())
+                {
+                    // Interrupted update: the install may mix old and new
+                    // files, so offer RESUME instead of PLAY.
+                    _view.SetStatus(
+                        Loc.Tr(
+                            "업데이트가 완료되지 않았습니다. 이어받기를 눌러 계속하세요.",
+                            "Update incomplete. Tap RESUME DOWNLOAD to continue."
+                        )
+                    );
+                    _view.Download.Visible = true;
+                    _view.Download.Reset(ResumeOrRetryButtonText());
+                }
+                else if (LauncherModel.GameFilesReady())
                 {
                     var text = ResolveLaunchButtonText();
                     ShowLaunchStage(text, showCloudSync: true, showUpdate: true);
@@ -632,6 +703,17 @@ public class LauncherController
 
     private async void OnDownloadPressed()
     {
+        // An interrupted download resumes on the branch it was started on
+        // (saved as the selected branch before it began), without asking again.
+        if (LauncherModel.HasPendingDownload())
+        {
+            _view.Download.ShowProgress(
+                Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...")
+            );
+            await RunDownloadAsync(LauncherModel.LoadSelectedBranch());
+            return;
+        }
+
         _view.Download.ShowProgress("Loading branches...");
 
         System.Collections.Generic.List<SteamBranchInfo> branches;
@@ -666,7 +748,34 @@ public class LauncherController
         _view.Download.ShowProgress(
             picked == "public" ? "Connecting to Steam..." : $"Connecting to Steam ({picked})..."
         );
-        await _model.StartDownloadAsync(picked);
+        await RunDownloadAsync(picked);
+    }
+
+    // Starts the download with the pause button and the Android foreground
+    // service (keeps it running with the screen off; see DownloadService.java).
+    // The terminal download events stop the service again.
+    private async Task RunDownloadAsync(string branch)
+    {
+        _lastLoggedDownloadFile = null;
+        _downloadInterrupted = false;
+        _view.Download.SetPauseVisible(true);
+        DownloadBackgroundService.Start(
+            Loc.Tr("게임 파일 다운로드 중", "Downloading game files"),
+            Loc.Tr("Steam에 연결 중...", "Connecting to Steam...")
+        );
+        await _model.StartDownloadAsync(branch);
+    }
+
+    // Button label after a download stops: RESUME when partial progress is
+    // kept on disk, with the percentage when it is known.
+    private static string ResumeOrRetryButtonText()
+    {
+        var pending = LauncherModel.ReadPendingDownload();
+        if (pending == null)
+            return "RETRY DOWNLOAD";
+        return pending.TotalBytes > 0
+            ? $"RESUME DOWNLOAD ({pending.Percentage:F0}%)"
+            : "RESUME DOWNLOAD";
     }
 
     private async void OnCheckGameUpdatePressed()

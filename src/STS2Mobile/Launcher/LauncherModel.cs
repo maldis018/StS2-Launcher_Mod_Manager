@@ -27,6 +27,9 @@ public class LauncherModel : IDisposable
     private CancellationTokenSource _qrCts;
     private DepotDownloader _downloader;
     private CancellationTokenSource _downloadCts;
+    private volatile bool _pauseRequested;
+    private volatile bool _downloadRunning;
+
     private TaskCompletionSource<bool> _launchTcs;
     private TaskCompletionSource<string> _codeTcs;
     private SessionState _state = SessionState.Disconnected;
@@ -88,6 +91,7 @@ public class LauncherModel : IDisposable
     public event Action DownloadCompleted;
     public event Action<string> DownloadFailed;
     public event Action DownloadCancelled;
+    public event Action DownloadPaused;
 
     // A single request is being retried (attempt counts from 1).
     public event Action<DownloadRetryInfo> DownloadRetrying;
@@ -150,8 +154,14 @@ public class LauncherModel : IDisposable
         );
 
         // Even with a valid marker, refuse the fast path if the PCK isn't on
-        // disk — otherwise PLAY would launch into a broken game.
-        if (_credentialStore.HasCredentials && hasMarker && GameFilesReady())
+        // disk — otherwise PLAY would launch into a broken game. The same goes
+        // for an interrupted update: the install may mix old and new files, so
+        // connect and offer RESUME instead. (Offline, the connection timeout
+        // fallback still shows PLAY, so nobody is locked out of the game.)
+        bool pending = HasPendingDownload();
+        if (pending)
+            PatchHelper.Log("[Launcher] Interrupted download found; skipping fast path");
+        if (_credentialStore.HasCredentials && hasMarker && GameFilesReady() && !pending)
             return FastPathResult.ReadyToLaunch;
 
         if (_credentialStore.HasCredentials)
@@ -467,6 +477,8 @@ public class LauncherModel : IDisposable
         _downloadCts = new CancellationTokenSource();
         var token = _downloadCts.Token;
         var resolvedBranch = branch ?? LoadSelectedBranch();
+        _pauseRequested = false;
+        _downloadRunning = true;
 
         try
         {
@@ -525,14 +537,43 @@ public class LauncherModel : IDisposable
         {
             if (ex is not OperationCanceledException)
                 PatchHelper.Log($"[Launcher] Download stopped by user; ignoring {ex.GetType().Name}: {ex.Message}");
-            DownloadCancelled?.Invoke();
+            if (_pauseRequested)
+                DownloadPaused?.Invoke();
+            else
+                DownloadCancelled?.Invoke();
         }
         catch (Exception ex)
         {
             DownloadFailed?.Invoke(ex.Message);
             PatchHelper.Log($"[Launcher] Download error: {ex}");
         }
+        finally
+        {
+            _downloadRunning = false;
+        }
     }
+
+    public bool IsDownloadRunning => _downloadRunning;
+
+    // Stops the running download but keeps everything fetched so far; the
+    // next StartDownloadAsync resumes from there. Chunks already in flight
+    // finish first (SteamKit2 can't cancel them), so this takes a moment.
+    public void PauseDownload()
+    {
+        if (!_downloadRunning)
+            return;
+        _pauseRequested = true;
+        _downloadCts?.Cancel();
+    }
+
+    private static string DownloadStateDir => Path.Combine(OS.GetDataDir(), "download_state");
+
+    // Non-null while a game download has started changing files and not yet
+    // finished (see PendingDownload).
+    public static PendingDownload ReadPendingDownload() => PendingDownload.Read(DownloadStateDir);
+
+    public static bool HasPendingDownload() =>
+        File.Exists(PendingDownload.PathFor(DownloadStateDir));
 
     // Waits between automatic resume rounds: 15 s, 30 s, 1, 2, then 5 minutes
     // three times, about 19 minutes without progress before the download is

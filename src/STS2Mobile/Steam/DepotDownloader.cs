@@ -15,8 +15,22 @@ using SteamKit2.CDN;
 
 namespace STS2Mobile.Steam;
 
+public enum DownloadPhase
+{
+    // Fetching app info, CDN servers and manifests.
+    Preparing,
+
+    // Hashing files already on disk to decide what to download.
+    Verifying,
+    Downloading,
+
+    // Patching the PCK and saving manifests.
+    Finishing,
+}
+
 public class DownloadProgress
 {
+    public DownloadPhase Phase;
     public long TotalBytes;
     public long DownloadedBytes;
     public int TotalFiles;
@@ -37,6 +51,10 @@ public class DepotDownloader : IDisposable
     private const string PckFileName = "SlayTheSpire2.pck";
     private const string TempSuffix = ".downloading";
     private const long FlushIntervalBytes = 32L * 1024 * 1024;
+
+    // ProgressChanged fires at most this often (it used to fire per chunk,
+    // flooding the UI thread and the log). Phase changes always fire.
+    private const long ProgressIntervalMs = 250;
     private static readonly TimeSpan PendingWriteInterval = TimeSpan.FromSeconds(5);
 
     private readonly SteamConnection _connection;
@@ -70,6 +88,7 @@ public class DepotDownloader : IDisposable
     private readonly object _pendingLock = new();
     private PendingDownload _pending;
     private long _resumedBytes;
+    private long _lastProgressTick;
 
     // Chunk bytes fetched from the CDN and written to a partial file by this
     // instance, over all attempts. Never reset: LauncherModel compares it
@@ -186,6 +205,9 @@ public class DepotDownloader : IDisposable
         {
             Directory.CreateDirectory(_gameDir);
             Directory.CreateDirectory(_stateDir);
+            _progress.DownloadedBytes = 0;
+            _progress.TotalBytes = 0;
+            SetPhase(DownloadPhase.Preparing);
 
             Log($"Fetching app info (branch={branch})...");
             var appInfo = await _steamPipeline.ExecuteAsync(
@@ -228,7 +250,7 @@ public class DepotDownloader : IDisposable
                 alreadyDone + plans.Sum(p => p.FilesToDownload.Sum(f => (long)f.TotalSize));
             _progress.DownloadedBytes = alreadyDone;
             _resumedBytes = 0;
-            ReportProgress();
+            SetPhase(DownloadPhase.Downloading);
 
             bool changesFiles = plans.Any(p =>
                 p.FilesToDownload.Count > 0 || p.FilesToDelete.Count > 0
@@ -265,6 +287,7 @@ public class DepotDownloader : IDisposable
                 await DownloadDepotFilesAsync(plan, ct);
             }
 
+            SetPhase(DownloadPhase.Finishing);
             Log("All game files downloaded!");
             if (_resumedBytes > 0)
                 Log($"Resumed {FormatSize(_resumedBytes)} from partial files");
@@ -567,6 +590,7 @@ public class DepotDownloader : IDisposable
 
         // New/changed files from the manifest diff, plus any existing file that
         // fails on-disk SHA-1 verification.
+        SetPhase(DownloadPhase.Verifying);
         var (filesToDownload, alreadyComplete) = GetFilesNeedingDownload(
             oldManifest,
             manifest,
@@ -1615,9 +1639,21 @@ public class DepotDownloader : IDisposable
         LogMessage?.Invoke(msg);
     }
 
-    private void ReportProgress()
+    private void SetPhase(DownloadPhase phase)
     {
-        ProgressChanged?.Invoke(_progress);
+        _progress.Phase = phase;
+        ReportProgress(force: true);
+    }
+
+    private void ReportProgress(bool force = false)
+    {
+        long now = Environment.TickCount64;
+        long last = Interlocked.Read(ref _lastProgressTick);
+        if (force || now - last >= ProgressIntervalMs)
+        {
+            Interlocked.Exchange(ref _lastProgressTick, now);
+            ProgressChanged?.Invoke(_progress);
+        }
         WritePendingMarker();
     }
 
