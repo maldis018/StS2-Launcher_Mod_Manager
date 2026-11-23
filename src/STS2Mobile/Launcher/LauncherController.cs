@@ -20,6 +20,14 @@ public class LauncherController
     private volatile bool _checkingForGameUpdate;
     private volatile bool _checkingForLauncherUpdate;
     private bool _launchStageShown;
+    // True from the AutoConnect fast path until the connection attempt
+    // resolves. While set, a failed connection keeps the offline PLAY stage
+    // (see TryShowOfflineLaunchStage) instead of replacing it with the login
+    // form.
+    private bool _autoConnecting;
+    // Set once the offline PLAY stage is up; later progress states of the
+    // still-running connection attempt must not wipe it.
+    private bool _offlineLaunchShown;
     private string _lastLaunchText = "LAUNCH";
     private bool _lastShowCloudSync;
     private bool _lastShowUpdate;
@@ -360,6 +368,8 @@ public class LauncherController
                 break;
 
             case FastPathResult.AutoConnect:
+                _autoConnecting = true;
+                _offlineLaunchShown = false;
                 _model.Connect();
                 StartConnectionTimeout();
                 break;
@@ -580,14 +590,12 @@ public class LauncherController
                 or SessionState.VerifyingOwnership
         )
         {
-            if (_model.HasOwnershipMarker() && LauncherModel.GameFilesReady())
+            if (CanLaunchOffline())
             {
                 _runOnMainThread(() =>
                 {
-                    _view.SetStatus("No connection — saved credentials will be used");
                     _view.AppendLog("Connection timed out. Valid ownership marker found.");
-                    var text = ResolveLaunchButtonText();
-                    ShowLaunchStage(text, showCloudSync: true, showUpdate: false);
+                    ShowOfflineLaunchStage();
                 });
             }
             else
@@ -599,6 +607,32 @@ public class LauncherController
                 });
             }
         }
+    }
+
+    // The saved ownership marker plus installed game files are enough to play
+    // without a connection.
+    private bool CanLaunchOffline() =>
+        _model.HasOwnershipMarker() && LauncherModel.GameFilesReady();
+
+    // PLAY without a connection, used when the AutoConnect attempt times out or
+    // fails. After an interrupted update this is the only way back into the
+    // game while offline, so say that the update is still pending.
+    private void ShowOfflineLaunchStage()
+    {
+        _offlineLaunchShown = true;
+        var status = Loc.Tr(
+            "연결 없음. 저장된 자격 증명을 사용합니다.",
+            "No connection. Saved credentials will be used."
+        );
+        if (LauncherModel.HasPendingDownload())
+            status +=
+                " "
+                + Loc.Tr(
+                    "이전 업데이트가 완료되지 않았습니다. 온라인 상태에서 런처를 다시 시작하면 이어받을 수 있습니다.",
+                    "The last update is incomplete; restart the launcher while online to resume it."
+                );
+        _view.SetStatus(status);
+        ShowLaunchStage(ResolveLaunchButtonText(), showCloudSync: true, showUpdate: false);
     }
 
     // Updates visible sections and status text based on session state transitions.
@@ -623,6 +657,34 @@ public class LauncherController
 
         if (_view.ModManager.Visible)
             return;
+
+        if (_autoConnecting)
+        {
+            if (
+                _offlineLaunchShown
+                && state
+                    is SessionState.Connecting
+                        or SessionState.Authenticating
+                        or SessionState.VerifyingOwnership
+            )
+                return;
+
+            if (state == SessionState.Failed && CanLaunchOffline())
+            {
+                // Offline with an interrupted update: AutoConnect was chosen
+                // over the fast path, but the failure must not lock the player
+                // out of the game (the 10 s timeout may not have fired yet, or
+                // already showed PLAY, which the login form would replace).
+                _autoConnecting = false;
+                _model.ConnectionResolved = true;
+                PatchHelper.Log($"[Launcher] Connect failed offline ({_model.FailReason}); keeping PLAY");
+                ShowOfflineLaunchStage();
+                return;
+            }
+
+            _autoConnecting = false;
+            _offlineLaunchShown = false;
+        }
 
         _view.HideAllSections();
 
