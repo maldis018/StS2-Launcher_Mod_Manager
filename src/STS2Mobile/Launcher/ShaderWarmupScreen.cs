@@ -97,7 +97,11 @@ public class ShaderWarmupScreen : Control
         panel.UpdateSizeFromViewport(vpSize);
         AddChild(panel);
 
-        _statusLabel = new StyledLabel("Compiling shaders...", _scale, fontSize: 20);
+        _statusLabel = new StyledLabel(
+            Loc.Tr("셰이더 컴파일 중...", "Compiling shaders..."),
+            _scale,
+            fontSize: 20
+        );
         panel.Content.AddChild(_statusLabel);
 
         _progressBar = new StyledProgressBar(_scale);
@@ -107,7 +111,11 @@ public class ShaderWarmupScreen : Control
         _progressBar.ShowPercentage = true;
         panel.Content.AddChild(_progressBar);
 
-        _detailLabel = new StyledLabel("Enumerating resources...", _scale, fontSize: 12);
+        _detailLabel = new StyledLabel(
+            Loc.Tr("리소스 목록을 확인하는 중...", "Enumerating resources..."),
+            _scale,
+            fontSize: 12
+        );
         _detailLabel.Modulate = new Color(0.7f, 0.7f, 0.7f);
         panel.Content.AddChild(_detailLabel);
     }
@@ -118,13 +126,13 @@ public class ShaderWarmupScreen : Control
 
         try
         {
-            _statusLabel.Text = "Scanning for shaders...";
+            _statusLabel.Text = Loc.Tr("셰이더 검색 중...", "Scanning for shaders...");
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 
             var materials = await CollectMaterialsAsync();
             PatchHelper.Log($"[ShaderWarmup] Collected {materials.Count} materials to warm");
 
-            _statusLabel.Text = "Compiling shaders...";
+            _statusLabel.Text = Loc.Tr("셰이더 컴파일 중...", "Compiling shaders...");
 
             if (materials.Count == 0)
             {
@@ -176,7 +184,10 @@ public class ShaderWarmupScreen : Control
                 processed = batchEnd;
                 double pct = 50 + (double)processed / total * 50;
                 _progressBar.Value = pct;
-                _detailLabel.Text = $"Compiling {processed} / {total}";
+                _detailLabel.Text = Loc.Tr(
+                    $"컴파일 중 {processed} / {total}",
+                    $"Compiling {processed} / {total}"
+                );
 
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -188,8 +199,11 @@ public class ShaderWarmupScreen : Control
             viewport.QueueFree();
 
             _progressBar.Value = 100;
-            _statusLabel.Text = "Done!";
-            _detailLabel.Text = $"Compiled {total} shaders in {sw.ElapsedMilliseconds}ms";
+            _statusLabel.Text = Loc.Tr("완료!", "Done!");
+            _detailLabel.Text = Loc.Tr(
+                $"셰이더 {total}개 컴파일 완료 ({sw.ElapsedMilliseconds}ms)",
+                $"Compiled {total} shaders in {sw.ElapsedMilliseconds}ms"
+            );
             PatchHelper.Log(
                 $"[ShaderWarmup] Completed: {total} materials in {sw.ElapsedMilliseconds}ms"
             );
@@ -235,7 +249,10 @@ public class ShaderWarmupScreen : Control
         PatchHelper.Log(
             $"[ShaderWarmup] Found {materials.Count} materials from loose resource files"
         );
-        _detailLabel.Text = $"Found {materials.Count} materials...";
+        _detailLabel.Text = Loc.Tr(
+            $"머티리얼 {materials.Count}개 발견...",
+            $"Found {materials.Count} materials..."
+        );
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
         var scenePaths = new List<string>();
@@ -263,7 +280,10 @@ public class ShaderWarmupScreen : Control
 
             if (i % 50 == 0)
             {
-                _detailLabel.Text = $"Scanning scenes... {i} / {scenePaths.Count}";
+                _detailLabel.Text = Loc.Tr(
+                    $"씬 검색 중... {i} / {scenePaths.Count}",
+                    $"Scanning scenes... {i} / {scenePaths.Count}"
+                );
                 _progressBar.Value = (double)i / scenePaths.Count * 50;
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }

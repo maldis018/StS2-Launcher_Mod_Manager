@@ -359,9 +359,9 @@ public class GodotApp extends GodotActivity {
 		TextView desc = new TextView(this);
 		desc.setText(isKo
 				? "게임 업데이트가 감지되어 모바일용 텍스처 캐시를\n"
-				+ "새 빌드 기준으로 재생성합니다.\n"
-				+ "첫 실행은 30~60초 소요되며 다음부터는 정상 속도입니다.\n\n"
-				+ "세이브 / 진행도 / 로그인 정보는 보존됩니다."
+				+ "새 빌드 기준으로 다시 만듭니다.\n"
+				+ "처음 실행은 30~60초 걸리며, 다음부터는 평소 속도로 시작합니다.\n\n"
+				+ "세이브, 진행도, 로그인 정보는 유지됩니다."
 				: "A game update was detected, so the mobile texture cache\n"
 				+ "is being rebuilt for the new version.\n"
 				+ "The first launch takes 30 to 60 seconds; after that, startup is back to normal.\n\n"
@@ -783,7 +783,9 @@ public class GodotApp extends GodotActivity {
 			}
 			lastBackPressToast = Toast.makeText(
 				this,
-				"Press back again to exit",
+				Locale.getDefault().getLanguage().startsWith("ko")
+					? "한 번 더 누르면 종료됩니다"
+					: "Press back again to exit",
 				Toast.LENGTH_SHORT
 			);
 			lastBackPressToast.show();

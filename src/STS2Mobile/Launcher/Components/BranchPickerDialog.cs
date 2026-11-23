@@ -65,12 +65,15 @@ public class BranchPickerDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", Ui.S(scale, Ui.GapL));
         dialogBox.AddChild(vbox);
 
-        var title = new StyledLabel("Select game version", scale, fontSize: 18);
+        var title = new StyledLabel(Loc.Tr("게임 버전 선택", "Select game version"), scale, fontSize: 18);
         title.HorizontalAlignment = HorizontalAlignment.Center;
         vbox.AddChild(title);
 
         var hint = new StyledLabel(
-            "Pick a Steam branch to download. Beta branches may be unstable.",
+            Loc.Tr(
+                "다운로드할 Steam 브랜치를 선택하세요. 베타 브랜치는 불안정할 수 있습니다.",
+                "Pick a Steam branch to download. Beta branches may be unstable."
+            ),
             scale,
             fontSize: Ui.FontCaption
         );
@@ -135,7 +138,7 @@ public class BranchPickerDialog : ColorRect
         // Same pair as StyledDialog: quiet ghost Cancel, filled OK as the single
         // emphasized action of the dialog (Von Restorff).
         var cancelButton = new StyledButton(
-            "Cancel",
+            Loc.Tr("취소", "Cancel"),
             scale,
             fontSize: 14,
             height: 52,
@@ -154,7 +157,7 @@ public class BranchPickerDialog : ColorRect
         buttonRow.AddChild(cancelButton);
 
         var okButton = new StyledButton(
-            "OK",
+            Loc.Tr("확인", "OK"),
             scale,
             fontSize: 14,
             height: 52,
@@ -219,7 +222,7 @@ public class BranchPickerDialog : ColorRect
 
         var caption = new StyledLabel(
             Loc.Tr(
-                "업데이트 후 카드 / 유물 / 포션 이미지가 이상한가요?",
+                "업데이트 후 카드, 유물, 포션 이미지가 이상한가요?",
                 "Card, relic, or potion images look wrong after an update?"
             ),
             scale,
@@ -233,7 +236,7 @@ public class BranchPickerDialog : ColorRect
         row.AddChild(caption);
 
         var atlasButton = new StyledButton(
-            "Clear image cache",
+            Loc.Tr("이미지 캐시 삭제", "Clear image cache"),
             scale,
             fontSize: 13,
             height: Ui.TouchHeight
@@ -322,7 +325,9 @@ public class BranchPickerDialog : ColorRect
         titleRow.MouseFilter = MouseFilterEnum.Ignore;
         textCol.AddChild(titleRow);
 
-        var titleText = branch.IsPasswordProtected ? $"{branch.Name} (private)" : branch.Name;
+        var titleText = branch.IsPasswordProtected
+            ? Loc.Tr($"{branch.Name} (비공개)", $"{branch.Name} (private)")
+            : branch.Name;
         var titleLabel = new StyledLabel(
             titleText,
             scale,
@@ -338,7 +343,7 @@ public class BranchPickerDialog : ColorRect
 
         if (!branch.IsPasswordProtected && branch.Name == currentBranch)
         {
-            var pill = Ui.MakePill("Current", scale, Ui.Accent);
+            var pill = Ui.MakePill(Loc.Tr("현재", "Current"), scale, Ui.Accent);
             pill.SizeFlagsVertical = SizeFlags.ShrinkCenter;
             titleRow.AddChild(pill);
         }
@@ -379,7 +384,7 @@ public class BranchPickerDialog : ColorRect
 
         var metaParts = new List<string>();
         if (!string.IsNullOrEmpty(branch.BuildId))
-            metaParts.Add($"Build {branch.BuildId}");
+            metaParts.Add(Loc.Tr($"빌드 {branch.BuildId}", $"Build {branch.BuildId}"));
         if (branch.TimeUpdatedUtc != default)
             metaParts.Add(branch.TimeUpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd"));
         if (metaParts.Count > 0)

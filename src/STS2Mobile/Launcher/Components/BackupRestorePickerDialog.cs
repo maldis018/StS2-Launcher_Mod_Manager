@@ -87,7 +87,7 @@ public class BackupRestorePickerDialog : ColorRect
         vbox.AddChild(title);
 
         var hint = new StyledLabel(
-            Loc.Tr("복원할 로컬 백업 시점을 선택하세요. 현재 상태는 복원 직전에 자동 백업됩니다.", "Choose a local backup to restore. Your current saves are backed up automatically first."),
+            Loc.Tr("복원할 백업을 선택하세요. 복원하기 전에 현재 세이브가 자동으로 백업됩니다.", "Choose a local backup to restore. Your current saves are backed up automatically first."),
             scale,
             fontSize: sz.HintFs
         );
@@ -186,7 +186,7 @@ public class BackupRestorePickerDialog : ColorRect
         textCol.AddChild(titleLabel);
 
         var subtitleLabel = new StyledLabel(
-            Loc.Tr($"{snap.FileCount}개 · {LauncherModel.FormatSize(snap.TotalBytes)}", $"{Loc.Files(snap.FileCount)} · {LauncherModel.FormatSize(snap.TotalBytes)}"),
+            Loc.Tr($"{snap.FileCount}개 · {Loc.Size(snap.TotalBytes)}", $"{Loc.Files(snap.FileCount)} · {Loc.Size(snap.TotalBytes)}"),
             scale,
             fontSize: sz.RowSubtitleFs,
             align: HorizontalAlignment.Left
@@ -236,7 +236,7 @@ public class BackupRestorePickerDialog : ColorRect
             "manual" => (Loc.Tr("수동", "Manual"), new Color(0.4f, 0.6f, 0.85f)),
             "auto-match" => (Loc.Tr("자동 · 일치", "Auto · In sync"), new Color(0.3f, 0.75f, 0.5f)),
             "auto-conflict-kept" => (Loc.Tr("자동 · 충돌(유지)", "Auto · Conflict (kept)"), new Color(0.3f, 0.75f, 0.5f)),
-            "auto-conflict-discarded" => (Loc.Tr("자동 · 충돌(폐기)", "Auto · Conflict (discarded)"), new Color(0.6f, 0.6f, 0.6f)),
+            "auto-conflict-discarded" => (Loc.Tr("자동 · 충돌(버림)", "Auto · Conflict (discarded)"), new Color(0.6f, 0.6f, 0.6f)),
             _ => (kind ?? "—", new Color(0.6f, 0.6f, 0.6f)),
         };
 }

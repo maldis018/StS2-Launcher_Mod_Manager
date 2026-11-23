@@ -910,7 +910,7 @@ public class LauncherController
             DownloadPhase.Verifying => Loc.Tr("기존 파일 확인 중...", "Verifying existing files..."),
             DownloadPhase.Finishing => Loc.Tr("마무리 중...", "Finishing up..."),
             _ =>
-                $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)",
+                $"{Loc.Size(p.DownloadedBytes)} / {Loc.Size(p.TotalBytes)} ({p.Percentage:F1}%)",
         };
 
     // Used for the status line and the notification (the latter on the model's

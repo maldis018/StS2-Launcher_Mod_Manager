@@ -150,29 +150,29 @@ public class CloudConflictDialog : ColorRect
         {
             SyncDecision.Identical => (
                 Loc.Tr("세이브 동기화 상태", "Save sync status"),
-                Loc.Tr("로컬과 Steam Cloud의 진행도가 일치합니다.\n별도 작업이 필요하지 않습니다.", "Your local progress and Steam Cloud are in sync.\nNo action is needed.")
+                Loc.Tr("로컬과 Steam 클라우드의 진행도가 일치합니다.\n별도 작업이 필요하지 않습니다.", "Your local progress and Steam Cloud are in sync.\nNo action is needed.")
             ),
             SyncDecision.NoData => (
                 Loc.Tr("세이브 동기화 상태", "Save sync status"),
-                Loc.Tr("로컬과 Steam Cloud 모두 진행도 데이터가 없습니다.", "There is no progress data locally or in Steam Cloud.")
+                Loc.Tr("로컬과 Steam 클라우드 모두 진행도 데이터가 없습니다.", "There is no progress data locally or in Steam Cloud.")
             ),
             SyncDecision.MobileOnly => (
                 Loc.Tr("세이브 데이터 동기화", "Sync save data"),
-                Loc.Tr("Steam Cloud에 진행도가 없습니다.\n이 디바이스 진행도를 클라우드로 업로드할까요?", "Steam Cloud has no saved progress.\nUpload this device's progress to the cloud?")
+                Loc.Tr("Steam 클라우드에 진행도가 없습니다.\n이 기기의 진행도를 클라우드에 올릴까요?", "Steam Cloud has no saved progress.\nUpload this device's progress to the cloud?")
             ),
             SyncDecision.CloudOnly => (
                 Loc.Tr("세이브 데이터 동기화", "Sync save data"),
-                Loc.Tr("이 디바이스에 진행도가 없습니다.\nSteam Cloud의 진행도를 가져올까요?", "This device has no saved progress.\nDownload your progress from Steam Cloud?")
+                Loc.Tr("이 기기에 진행도가 없습니다.\nSteam 클라우드의 진행도를 가져올까요?", "This device has no saved progress.\nDownload your progress from Steam Cloud?")
             ),
             SyncDecision.Unverified => (
                 Loc.Tr("세이브 상태 확인 불가", "Can't check save status"),
-                Loc.Tr("일시적으로 Steam Cloud 상태를 확인하지 못했습니다.\n잠시 후 다시 시도해 주세요.", "Couldn't reach Steam Cloud right now.\nPlease try again in a moment.")
+                Loc.Tr("일시적으로 Steam 클라우드 상태를 확인하지 못했습니다.\n잠시 후 다시 시도해 주세요.", "Couldn't reach Steam Cloud right now.\nPlease try again in a moment.")
             ),
             _ => (
                 Loc.Tr("세이브 데이터 충돌", "Save data conflict"),
                 diffSlotCount > 1
-                    ? Loc.Tr($"이 디바이스와 Steam Cloud의 진행도가 다릅니다 ({diffSlotCount}개 프로필).\n어느 쪽을 유지할지 선택하세요.", $"Progress on this device and in Steam Cloud differs for {diffSlotCount} profiles.\nChoose which version to keep.")
-                    : Loc.Tr("이 디바이스와 Steam Cloud의 진행도가 다릅니다.\n어느 쪽을 유지할지 선택하세요.", "Progress on this device and in Steam Cloud differs.\nChoose which version to keep.")
+                    ? Loc.Tr($"이 기기와 Steam 클라우드의 진행도가 다릅니다 (프로필 {diffSlotCount}개).\n어느 쪽을 유지할지 선택하세요.", $"Progress on this device and in Steam Cloud differs for {diffSlotCount} profiles.\nChoose which version to keep.")
+                    : Loc.Tr("이 기기와 Steam 클라우드의 진행도가 다릅니다.\n어느 쪽을 유지할지 선택하세요.", "Progress on this device and in Steam Cloud differs.\nChoose which version to keep.")
             ),
         };
         if (!string.IsNullOrEmpty(customTitle))
@@ -194,9 +194,9 @@ public class CloudConflictDialog : ColorRect
         vbox.AddChild(cardsRow);
 
         cardsRow.AddChild(
-            BuildSummaryCard(Loc.Tr("📱  이 디바이스 (로컬)", "📱  This device (Local)"), local, localIsMoreRecent, scale, sz)
+            BuildSummaryCard(Loc.Tr("📱  이 기기 (로컬)", "📱  This device (Local)"), local, localIsMoreRecent, scale, sz)
         );
-        cardsRow.AddChild(BuildSummaryCard("☁  Steam Cloud", cloud, !localIsMoreRecent, scale, sz));
+        cardsRow.AddChild(BuildSummaryCard(Loc.Tr("☁  Steam 클라우드", "☁  Steam Cloud"), cloud, !localIsMoreRecent, scale, sz));
 
         // No "remember my choice" checkbox by design: which side is correct
         // depends on the situation (which device was last played, whether the
@@ -378,12 +378,12 @@ public class CloudConflictDialog : ColorRect
             return card;
         }
 
-        AddRow(col, Loc.Tr("파일 생성 시간", "Last modified"), s.FormatLastModified(), scale, sz);
+        AddRow(col, Loc.Tr("마지막 수정", "Last modified"), s.FormatLastModified(), scale, sz);
         AddRow(col, Loc.Tr("파일 크기", "File size"), s.FormatSize(), scale, sz);
 
         if (s.ParseSucceeded)
         {
-            AddRow(col, Loc.Tr("총 플레이타임", "Total playtime"), s.FormatPlaytime(), scale, sz);
+            AddRow(col, Loc.Tr("총 플레이 시간", "Total playtime"), s.FormatPlaytime(), scale, sz);
             // Issue #7: replaced "캐릭터 N명" (progress.save accumulator with
             // little signal during conflict resolution) with the in-progress
             // run indicator so the user can see exactly which side has the
@@ -408,7 +408,7 @@ public class CloudConflictDialog : ColorRect
         {
             // Schema parse failed but file has content — still useful to show.
             var note = new StyledLabel(
-                Loc.Tr("(상세 통계를 읽지 못함 — 파일은 존재함)", "(Detailed stats unavailable, but the save file exists)"),
+                Loc.Tr("(상세 통계를 읽지 못했지만 파일은 있습니다)", "(Detailed stats unavailable, but the save file exists)"),
                 scale,
                 fontSize: sz.SubtitleFs,
                 align: HorizontalAlignment.Left

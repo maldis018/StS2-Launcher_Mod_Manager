@@ -39,6 +39,14 @@ public static class Loc
 
     public static string Tr(string ko, string en) => IsKo ? ko : en;
 
+    // Byte size for UI text: LauncherModel.FormatSize ("9.9 MB"), with the unit
+    // attached to the number the Korean way ("9.9MB").
+    public static string Size(long bytes)
+    {
+        var s = LauncherModel.FormatSize(bytes);
+        return IsKo ? s.Replace(" ", "") : s;
+    }
+
     // English file count with correct singular/plural ("1 file", "3 files").
     // Only meant for the English half of a Loc.Tr pair.
     public static string Files(int n) => n == 1 ? "1 file" : $"{n} files";
