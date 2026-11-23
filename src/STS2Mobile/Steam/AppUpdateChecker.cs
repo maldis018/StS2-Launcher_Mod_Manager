@@ -10,7 +10,7 @@ namespace STS2Mobile.Steam;
 public static class AppUpdateChecker
 {
     private const string ReleasesUrl =
-        "https://api.github.com/repos/maldis018/StS2-Launcher_Mod_Manager/releases/latest";
+        "https://api.github.com/repos/maldis018/sts2-launcher-redux/releases/latest";
 
     private const string ApkAssetPrefix = "StS2LauncherRedux-";
 

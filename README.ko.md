@@ -4,7 +4,7 @@
 
 안드로이드에서 모드와 함께 **Slay the Spire 2**를 플레이하세요. StS2 Launcher Redux는 Steam에 로그인해 보유한 게임을 Steam에서 직접 받고, 커스텀 Godot 4.5.1 엔진 빌드 위에서 실행하며, Harmony 런타임 패치로 데스크톱 게임을 터치 화면에 맞게 바꿉니다. 모드(Steam 창작마당 포함), Steam 클라우드 세이브, 로컬 백업도 관리합니다.
 
-**최신 릴리스: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
+**최신 릴리스: [v0.5.0](https://github.com/maldis018/sts2-launcher-redux/releases/latest)**
 
 > StS2 Launcher Redux는 비공식 팬 프로젝트이며, Slay the Spire 2의 개발·배급사인 Mega Crit Games와 제휴하거나 보증·지원을 받지 않습니다. 게임을 보유한 Steam 계정이 필요하며, 이 저장소와 앱에는 게임 파일이 포함되어 있지 않습니다.
 
@@ -18,7 +18,7 @@
 
 순서:
 
-1. [Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)에서 최신 `StS2LauncherRedux-vX.Y.Z.apk`를 받아 설치합니다 (안드로이드가 물으면 브라우저나 파일 매니저의 설치를 허용하세요).
+1. [Releases 페이지](https://github.com/maldis018/sts2-launcher-redux/releases/latest)에서 최신 `StS2LauncherRedux-vX.Y.Z.apk`를 받아 설치합니다 (안드로이드가 물으면 브라우저나 파일 매니저의 설치를 허용하세요).
 2. **StS2 Launcher Redux**를 열고 **모든 파일 액세스**를 허용합니다. 모드·백업·로그가 공유 폴더에 있어서 필요합니다.
 3. 다른 휴대폰이나 태블릿의 Steam 앱으로 화면의 QR 코드를 스캔해 로그인합니다. 이 방법은 런처가 비밀번호를 다루지 않습니다. 휴대폰이 하나뿐이면 이 휴대폰에서 비밀번호로 로그인하고 Steam 앱에서 요청을 승인하세요 (Steam Guard 코드도 됩니다). 비밀번호는 저장하지 않으며, 로그인 토큰은 Android Keystore로 암호화해 저장합니다.
 4. Steam 브랜치(보통 `public`)를 고르고 게임을 받은 뒤 **게임 시작**을 누릅니다.
@@ -97,7 +97,7 @@ PC에서는 게임 실행 옵션(**Steam > Slay the Spire 2 > 속성 > 실행 �
 
 스크린샷이 포함된 단계별 안내는 [docs/USER_GUIDE.ko.md](docs/USER_GUIDE.ko.md)에 있습니다 (영어판: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)). 일부 스크린샷은 아직 이전 StS2 Launcher Mod 화면입니다.
 
-버그를 제보하려면 **디버그**를 켜고 문제를 재현한 뒤 `StS2LauncherRedux/Logs/`의 최신 파일을 [이슈](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)에 첨부해 주세요.
+버그를 제보하려면 **디버그**를 켜고 문제를 재현한 뒤 `StS2LauncherRedux/Logs/`의 최신 파일을 [이슈](https://github.com/maldis018/sts2-launcher-redux/issues)에 첨부해 주세요.
 
 ## 프로젝트 계보
 
@@ -107,9 +107,9 @@ Redux는 포크 계보의 세 번째 프로젝트입니다:
 |---|---|---|---|
 | StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | 2026년 3월 (v0.1.0, v0.2.0) | 원조 포팅: 커스텀 Godot 엔진 빌드, Harmony 런타임 패칭 ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), Steam 로그인과 게임 다운로드 |
 | StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | 2026년 4월 ~ 8월 (v0.2.1 ~ v0.4.2) | 최신 게임 빌드용 모드 로딩, 창작마당 모드 허브, 세이브 안전장치(충돌 선택, 쓰기 가드, 로컬 백업), 런처 자체 업데이트, 폴더블·모바일 UX, LAN 수정 |
-| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | 2026년 11월 ~ (v0.5.0+) | StS2 Launcher Mod v0.4.2에서 분기해 별도로 유지보수: 독자적인 앱 아이덴티티와 폴더, StS2 Launcher Mod에서 가져오기, 한국어 전용 메시지의 영어 번역, 자동 릴리스 빌드 |
+| StS2 Launcher Redux | [maldis018/sts2-launcher-redux](https://github.com/maldis018/sts2-launcher-redux) | 2026년 11월 ~ (v0.5.0+) | StS2 Launcher Mod v0.4.2에서 분기해 별도로 유지보수: 독자적인 앱 아이덴티티와 폴더, StS2 Launcher Mod에서 가져오기, 한국어 전용 메시지의 영어 번역, 자동 릴리스 빌드 |
 
-엔진 포팅과 모드 매니저는 Ekyso와 iunius612의 작업입니다. v0.4.2까지의 릴리스 노트(기술 노트 포함)는 [StS2 Launcher Mod의 Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases)에, Redux 릴리스는 [이 저장소의 Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases)에 있습니다.
+엔진 포팅과 모드 매니저는 Ekyso와 iunius612의 작업입니다. v0.4.2까지의 릴리스 노트(기술 노트 포함)는 [StS2 Launcher Mod의 Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases)에, Redux 릴리스는 [이 저장소의 Releases 페이지](https://github.com/maldis018/sts2-launcher-redux/releases)에 있습니다.
 
 ## 소스에서 빌드
 

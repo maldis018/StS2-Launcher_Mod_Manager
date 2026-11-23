@@ -35,7 +35,7 @@ StS2 Launcher Redux is an unofficial fan project and is not affiliated with Mega
 
 ## 1. Download and install the APK
 
-Download the newest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) to your phone.
+Download the newest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/sts2-launcher-redux/releases/latest) to your phone.
 
   <img src="images/1.jpg" width="600">
 
@@ -456,7 +456,7 @@ The Workshop makes mods easy to get, but **PC and mobile are structurally differ
 1. **P2P game traffic** (Steam NetworkingSockets / SDR)
 2. **The overlay and Steam Input**: these belong to the Steam client process and can't be implemented at the protocol level (for example QuickReload)
 
-If a mod doesn't work, please report it in an [issue](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues) together with the debug log from [Section 14](#14-debug-logs-debug-toggle).
+If a mod doesn't work, please report it in an [issue](https://github.com/maldis018/sts2-launcher-redux/issues) together with the debug log from [Section 14](#14-debug-logs-debug-toggle).
 
 > **Merging mod saves**: after a game update changed how saves are stored, **the UnifiedSave mod can no longer be used.** If you need to merge mod saves, use [SaveMerger](https://steamcommunity.com/sharedfiles/filedetails/?id=3748139900). Before using any mod that touches saves, we recommend making a snapshot with [Local Backup](#11-local-backup).
 
@@ -528,7 +528,7 @@ When something goes wrong, the launcher can capture the logcat output you need f
 
 1. Open the path above with an external file manager (ZArchiver recommended).
 2. Find the **launcher_*.log** from when the problem happened (usually the newest) and move it to your PC or send it through a messenger.
-3. Attach it to an issue: [maldis018/StS2-Launcher_Mod_Manager/issues](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)
+3. Attach it to an issue: [maldis018/sts2-launcher-redux/issues](https://github.com/maldis018/sts2-launcher-redux/issues)
 
 ### Turning Debug OFF
 
@@ -590,7 +590,7 @@ Choose a different branch in CHECK GAME UPDATE and it re-downloads in full autom
 | The launcher fails to start on some tablets (Lenovo Y700/Y704 and others) | [Issue #6](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues/6): collecting device logs |
 | The PC and phone `progress.save` sizes diverge (a conflict dialog shows once per device switch) | Tracked separately. The destructive impact was blocked in StS2 Launcher Mod 0.3.2 |
 
-If you find a new problem, please open an [issue](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues). Attaching a log captured with `adb logcat -d > sts2.log` helps a lot.
+If you find a new problem, please open an [issue](https://github.com/maldis018/sts2-launcher-redux/issues). Attaching a log captured with `adb logcat -d > sts2.log` helps a lot.
 
 ---
 
@@ -615,4 +615,4 @@ adb shell rm -rf /storage/emulated/0/StS2LauncherRedux
 
 ---
 
-*This document is part of [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager). If you spot wrong information or want something added, let us know with a PR or an issue.*
+*This document is part of [maldis018/sts2-launcher-redux](https://github.com/maldis018/sts2-launcher-redux). If you spot wrong information or want something added, let us know with a PR or an issue.*

@@ -35,7 +35,7 @@ StS2 Launcher Redux는 비공식 팬 프로젝트이며 Mega Crit Games와 관�
 
 ## 1. APK 다운로드 + 설치
 
-[Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)에서 가장 최신 버전의 `StS2LauncherRedux-vX.Y.Z.apk` 파일을 폰으로 다운로드합니다.
+[Releases 페이지](https://github.com/maldis018/sts2-launcher-redux/releases/latest)에서 가장 최신 버전의 `StS2LauncherRedux-vX.Y.Z.apk` 파일을 폰으로 다운로드합니다.
 
   <img src="images/1.jpg" width="600">
 
@@ -458,7 +458,7 @@ steam/<SteamID>/[modded/]profile<N>/saves/<파일명>
 1. **P2P 게임 트래픽** (Steam NetworkingSockets / SDR)
 2. **오버레이, Steam Input**: Steam 클라이언트 프로세스의 기능이라 프로토콜 수준에서 구현할 수 없습니다 (예: QuickReload)
 
-모드가 작동하지 않으면 [14번](#14-디버그-로그-디버그-토글)의 디버그 로그와 함께 [이슈](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)로 제보해 주세요.
+모드가 작동하지 않으면 [14번](#14-디버그-로그-디버그-토글)의 디버그 로그와 함께 [이슈](https://github.com/maldis018/sts2-launcher-redux/issues)로 제보해 주세요.
 
 > **모드 세이브 병합 관련**: 게임 업데이트로 세이브 저장 방식이 바뀌면서 **UnifiedSave 모드는 더 이상 사용할 수 없습니다.** 모드 세이브 병합이 필요하면 [SaveMerger](https://steamcommunity.com/sharedfiles/filedetails/?id=3748139900)를 사용하세요. 세이브를 건드리는 모드를 쓰기 전에는 [로컬 백업](#11-로컬-백업-세이브-백업)으로 스냅샷을 만들어 두는 것을 권장합니다.
 
@@ -530,7 +530,7 @@ steam/<SteamID>/[modded/]profile<N>/saves/<파일명>
 
 1. 외부 파일 매니저(ZArchiver 권장)로 위 경로를 엽니다.
 2. **launcher_*.log** 중 문제가 발생한 시점의 파일(보통 가장 최근 것)을 찾아 PC로 옮기거나 메신저로 보냅니다.
-3. 이슈에 첨부해 주세요: [maldis018/StS2-Launcher_Mod_Manager/issues](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)
+3. 이슈에 첨부해 주세요: [maldis018/sts2-launcher-redux/issues](https://github.com/maldis018/sts2-launcher-redux/issues)
 
 ### 디버그 끄기
 
@@ -592,7 +592,7 @@ StS2 Launcher Mod 0.3.2부터는 자동으로 회복됩니다. 스와이프했�
 | 일부 태블릿(Lenovo Y700/Y704 등)에서 런처 진입 실패 | [이슈 #6](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues/6): 기기 로그 수집 중 |
 | PC ↔ 폰 progress.save 크기 차이 (매 기기 전환 시 충돌 다이얼로그 한 번씩 뜸) | 별도 추적 중. 파괴적 영향은 StS2 Launcher Mod 0.3.2에서 차단됨 |
 
-새 문제를 발견하면 [이슈](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)로 등록해 주세요. `adb logcat -d > sts2.log`로 채취한 로그를 첨부해 주시면 분석에 큰 도움이 됩니다.
+새 문제를 발견하면 [이슈](https://github.com/maldis018/sts2-launcher-redux/issues)로 등록해 주세요. `adb logcat -d > sts2.log`로 채취한 로그를 첨부해 주시면 분석에 큰 도움이 됩니다.
 
 ---
 
@@ -617,4 +617,4 @@ adb shell rm -rf /storage/emulated/0/StS2LauncherRedux
 
 ---
 
-*이 문서는 [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager)의 일부입니다. 잘못된 정보나 추가하고 싶은 항목이 있으면 PR 또는 이슈로 알려주세요.*
+*이 문서는 [maldis018/sts2-launcher-redux](https://github.com/maldis018/sts2-launcher-redux)의 일부입니다. 잘못된 정보나 추가하고 싶은 항목이 있으면 PR 또는 이슈로 알려주세요.*

@@ -4,7 +4,7 @@
 
 Play **Slay the Spire 2** on Android, with mods. StS2 Launcher Redux signs in to Steam, downloads the game you own straight from Steam, and runs it on a custom Godot 4.5.1 engine build, adapting the desktop game for touch screens with Harmony runtime patches. It also manages your mods (including the Steam Workshop), Steam Cloud saves and local backups.
 
-**Latest release: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
+**Latest release: [v0.5.0](https://github.com/maldis018/sts2-launcher-redux/releases/latest)**
 
 > StS2 Launcher Redux is an unofficial fan project. It is not affiliated with, endorsed by, or supported by Mega Crit Games, the developer and publisher of Slay the Spire 2. You need a Steam account that owns the game; no game files are included in this repository or in the app.
 
@@ -18,7 +18,7 @@ You need:
 
 Steps:
 
-1. Download the latest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) and install it (allow installs from your browser or file manager when Android asks).
+1. Download the latest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/sts2-launcher-redux/releases/latest) and install it (allow installs from your browser or file manager when Android asks).
 2. Open **StS2 Launcher Redux** and allow **All files access** when asked. Mods, backups and logs live in a shared folder, so the launcher needs it.
 3. Sign in by scanning the on-screen QR code with the Steam app on another phone or tablet, so the launcher never sees your password. With only one phone, sign in on this phone with your password and approve the request in the Steam app (Steam Guard codes also work). The password is never stored, and the sign-in token is stored encrypted with the Android Keystore.
 4. Pick a Steam branch (normally `public`), download the game, then tap **PLAY**.
@@ -97,7 +97,7 @@ The game itself, your sign-in and your live saves are in the app's private stora
 
 A step-by-step guide with screenshots is in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (Korean: [docs/USER_GUIDE.ko.md](docs/USER_GUIDE.ko.md)). Some screenshots still show the older StS2 Launcher Mod UI.
 
-To report a bug, turn on **Debug**, reproduce the problem, and attach the newest file from `StS2LauncherRedux/Logs/` to an [issue](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues).
+To report a bug, turn on **Debug**, reproduce the problem, and attach the newest file from `StS2LauncherRedux/Logs/` to an [issue](https://github.com/maldis018/sts2-launcher-redux/issues).
 
 ## Project history
 
@@ -107,9 +107,9 @@ Redux is the third project in a line of forks:
 |---|---|---|---|
 | StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | March 2026 (v0.1.0, v0.2.0) | The original port: the custom Godot engine build, Harmony runtime patching ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), Steam sign-in and game download |
 | StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | April to August 2026 (v0.2.1 to v0.4.2) | Mod loading for current game builds, the Workshop Mod Hub, save safety (conflict choice, write guards, Local Backup), launcher self-update, foldable and mobile UX work, LAN fixes |
-| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | November 2026 on (v0.5.0+) | Forked from StS2 Launcher Mod v0.4.2 and maintained separately: its own app identity and folder, import from StS2 Launcher Mod, English text for Korean-only messages, automated release builds |
+| StS2 Launcher Redux | [maldis018/sts2-launcher-redux](https://github.com/maldis018/sts2-launcher-redux) | November 2026 on (v0.5.0+) | Forked from StS2 Launcher Mod v0.4.2 and maintained separately: its own app identity and folder, import from StS2 Launcher Mod, English text for Korean-only messages, automated release builds |
 
-The engine port and the mod manager are the work of Ekyso and iunius612. Release notes up to v0.4.2 (in Korean, with technical detail) are on [StS2 Launcher Mod's Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases); Redux releases are on [this repo's Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases).
+The engine port and the mod manager are the work of Ekyso and iunius612. Release notes up to v0.4.2 (in Korean, with technical detail) are on [StS2 Launcher Mod's Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases); Redux releases are on [this repo's Releases page](https://github.com/maldis018/sts2-launcher-redux/releases).
 
 ## Building from source
 
