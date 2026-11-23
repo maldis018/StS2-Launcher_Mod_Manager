@@ -119,6 +119,10 @@ public class DepotDownloader : IDisposable
     public async Task DownloadAsync(string branch = "public", CancellationToken ct = default)
     {
         _connection.SuspendIdleTimeout();
+        // The same instance can run several attempts; a marker object left
+        // over from a failed one would be rewritten with this attempt's
+        // still-zero totals during the prepare step.
+        _pending = null;
         try
         {
             Directory.CreateDirectory(_gameDir);
