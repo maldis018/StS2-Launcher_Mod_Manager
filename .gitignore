@@ -22,6 +22,8 @@ src/STS2Mobile/obj/
 *.aar
 *.aar.bak*
 *.jar
+# Official Gradle 8.13 wrapper (sha256 81a82aae..., checked in CI)
+!android/gradle/wrapper/gradle-wrapper.jar
 *.keystore
 
 # Third-party sources & SDKs
@@ -43,6 +45,7 @@ logs.txt
 # Hidden directories
 .*
 !.gitignore
+!.github/
 
 # IDE
 *.user
