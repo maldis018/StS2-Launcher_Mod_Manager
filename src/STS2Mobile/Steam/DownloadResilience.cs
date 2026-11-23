@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Polly;
@@ -151,7 +152,20 @@ public static class DownloadResilience
             IOException => true,
             SocketException => true,
             WebSocketException => true,
+            // Corrupt data from one CDN node: SteamKit2 reports a bad chunk or
+            // manifest checksum, length or zip CRC as InvalidDataException, bad
+            // AES padding as CryptographicException, and broken zstd or LZMA
+            // streams as ZstdException or its internal LZMA DataErrorException.
+            // Another server will usually have a good copy.
+            InvalidDataException => true,
+            CryptographicException => true,
+            ZstdSharp.ZstdException => true,
+            _ when ex.GetType().FullName == LzmaDataErrorTypeName => true,
             _ => false,
         };
     }
+
+    // SevenZip.DataErrorException is internal to SteamKit2, so it can only be
+    // matched by name.
+    private const string LzmaDataErrorTypeName = "SevenZip.DataErrorException";
 }
