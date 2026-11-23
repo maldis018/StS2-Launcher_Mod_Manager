@@ -461,27 +461,34 @@ public class LauncherModel : IDisposable
 
     public async Task StartDownloadAsync(string branch = null)
     {
-        await EnsureConnectedAsync();
-        if (_state != SessionState.LoggedIn || _connection == null)
-        {
-            DownloadFailed?.Invoke(null);
-            return;
-        }
-
-        _downloader?.Dispose();
-        _downloader = new DepotDownloader(_connection, _dataDir);
-        _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
-        _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
-        _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
-
+        // The download counts as running from the first await, so a PAUSE
+        // pressed while connecting is recorded (and honored below) instead of
+        // being ignored with the button left disabled.
         _downloadCts = new CancellationTokenSource();
         var token = _downloadCts.Token;
-        var resolvedBranch = branch ?? LoadSelectedBranch();
         _pauseRequested = false;
         _downloadRunning = true;
 
         try
         {
+            await EnsureConnectedAsync();
+            if (_state != SessionState.LoggedIn || _connection == null)
+            {
+                DownloadFailed?.Invoke(null);
+                return;
+            }
+
+            // Paused or cancelled while connecting: nothing downloaded yet.
+            token.ThrowIfCancellationRequested();
+
+            _downloader?.Dispose();
+            _downloader = new DepotDownloader(_connection, _dataDir);
+            _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
+            _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
+            _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
+
+            var resolvedBranch = branch ?? LoadSelectedBranch();
+
             // When the network is gone long enough for a request to exhaust its
             // own retries, wait and run the whole download again instead of
             // failing. That is cheap: DepotDownloader keeps verified files and
