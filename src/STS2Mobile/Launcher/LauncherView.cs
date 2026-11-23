@@ -421,10 +421,12 @@ public class LauncherView
         string message,
         Action onConfirmed,
         Action onCancelled = null,
-        string okLabel = "OK",
-        string cancelLabel = "Cancel"
+        string okLabel = null,
+        string cancelLabel = null
     )
     {
+        // null falls through to StyledDialog's localized 확인 / 취소 defaults, so
+        // every dialog shows the same OK/Cancel pair.
         var dialog = new StyledDialog(message, _scale, okLabel, cancelLabel);
         dialog.Confirmed += onConfirmed;
         if (onCancelled != null)
