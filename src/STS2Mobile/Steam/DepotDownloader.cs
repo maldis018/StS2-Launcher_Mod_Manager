@@ -1297,6 +1297,13 @@ public class DepotDownloader : IDisposable
             catch (Exception ex)
             {
                 Log($"Failed to update pending marker: {ex.Message}");
+                // The forced write is the one right before the first file
+                // change. Without a marker on disk an interrupted update would
+                // look complete, so stop before touching game files. Throttled
+                // progress updates only refresh the percentage of a marker
+                // that already exists, so they keep going.
+                if (force)
+                    throw;
             }
         }
     }

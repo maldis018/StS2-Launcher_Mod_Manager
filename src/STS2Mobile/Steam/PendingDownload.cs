@@ -12,10 +12,15 @@ namespace STS2Mobile.Steam;
 // exists the install can be a mix of old and new files, so the launcher offers
 // RESUME instead of PLAY.
 //
-// Byte counts are informational (the resume percentage shown in the UI).
-// Correctness never depends on them: a resume revalidates every chunk of every
-// partial file against the manifest SHA-1, so a stale or missing marker can
-// only make the UI less helpful, never produce a bad install.
+// The marker's presence is what matters: it is the only record that an update
+// is half applied, so a missing marker would let the launcher offer PLAY on a
+// mixed install. That is why DepotDownloader stops before touching game files
+// when the first write fails. A leftover marker after a finished install is
+// harmless: RESUME re-verifies, finds nothing to fetch and deletes it.
+//
+// Byte counts are informational (the resume percentage shown in the UI) and
+// can lag the real progress; nothing else depends on them, because a resume
+// revalidates every chunk of every partial file against the manifest SHA-1.
 public class PendingDownload
 {
     public const string FileName = "pending.json";
