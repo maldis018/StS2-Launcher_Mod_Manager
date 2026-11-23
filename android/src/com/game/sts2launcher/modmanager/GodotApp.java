@@ -812,6 +812,53 @@ public class GodotApp extends GodotActivity {
 		return instance;
 	}
 
+	// ── Game download foreground service (see DownloadService) ──────────
+	// Called from C# (DownloadBackgroundService) through JavaClassWrapper.
+	// Arguments are strings only, matching the other bridge calls here.
+
+	private static final int REQUEST_POST_NOTIFICATIONS = 4202;
+	private static final String PREF_NOTIF_ASKED = "download_notif_permission_asked";
+
+	public void startDownloadService(String title, String text) {
+		maybeRequestNotificationPermission();
+		DownloadService.start(this, title, text);
+	}
+
+	public void updateDownloadService(String percent, String text) {
+		int pct = -1;
+		try {
+			pct = Integer.parseInt(percent);
+		} catch (NumberFormatException ignored) {
+		}
+		DownloadService.update(this, pct, text);
+	}
+
+	public void stopDownloadService() {
+		DownloadService.stop(this);
+	}
+
+	// Asks for notification permission once, the first time a download starts
+	// (Android 13+). The download doesn't depend on the answer: if denied, the
+	// foreground service still keeps it alive, the user just doesn't see the
+	// progress notification. We don't ask again on later downloads.
+	private void maybeRequestNotificationPermission() {
+		if (Build.VERSION.SDK_INT < 33) return;
+		if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+				== android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+		SharedPreferences prefs = getSharedPreferences("sts2mobile", MODE_PRIVATE);
+		if (prefs.getBoolean(PREF_NOTIF_ASKED, false)) return;
+		prefs.edit().putBoolean(PREF_NOTIF_ASKED, true).apply();
+		runOnUiThread(() -> {
+			try {
+				requestPermissions(
+						new String[] { android.Manifest.permission.POST_NOTIFICATIONS },
+						REQUEST_POST_NOTIFICATIONS);
+			} catch (Exception e) {
+				Log.w(TAG, "Notification permission request failed", e);
+			}
+		});
+	}
+
 	public String getGameDir() {
 		return gameDir;
 	}

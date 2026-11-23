@@ -65,7 +65,11 @@ public static class ModEntry
         // must match android/gradle.properties export_package_name.
         try
         {
-            const string tmpDir = "/data/user/0/com.game.sts2launcher.modmanager/cache/MonoMod";
+            var filesRoot = ResolveFilesDir();
+            var tmpDir =
+                filesRoot != null
+                    ? Path.Combine(Path.GetDirectoryName(filesRoot), "cache", "MonoMod")
+                    : "/data/user/0/com.game.sts2launcher.modmanager/cache/MonoMod";
             Directory.CreateDirectory(tmpDir);
             System.Environment.SetEnvironmentVariable("TMPDIR", tmpDir);
             int cleaned = TryCleanStaleMonoModFiles(tmpDir);
@@ -115,6 +119,21 @@ public static class ModEntry
         // the GodotObject.Call choke point. Game-independent (patches GodotSharp) and
         // must be live before any mod runs.
         FmodEventGuardPatches.Apply(_harmony);
+
+        // The process booted on the bootstrap PCK (GodotApp.getCommandLine found no
+        // game PCK, e.g. a first install or an interrupted one): the game's scenes
+        // and startup never run, so the game patches would sit idle and nothing
+        // would ever show a launcher, even when sts2.dll and the other game DLLs
+        // are already on disk. Go straight to the standalone launcher instead of
+        // relying on the sts2.dll load failing below.
+        if (BootedOnBootstrapPck())
+        {
+            PatchHelper.Log(
+                "Booted on bootstrap PCK (no game PCK); skipping game patches"
+            );
+            ScheduleStandaloneLauncher();
+            return;
+        }
 
         // Game patches require sts2.dll; if missing, fall through to standalone launcher.
         try
@@ -168,6 +187,92 @@ public static class ModEntry
             PatchHelper.Log($"Game patches skipped (files not present): {ex.Message}");
             ScheduleStandaloneLauncher();
         }
+    }
+
+    // Mirrors GodotApp.getCommandLine, which picks the bootstrap PCK exactly when
+    // <filesDir>/game/SlayTheSpire2.pck does not exist. Uses no Godot API, so it
+    // is safe this early. Keep both sides on this one condition (the PCK is
+    // renamed into place only after a complete download, so existence means
+    // finished).
+    //
+    // The files dir is derived at runtime so renamed or test builds (another
+    // package id) work. If it cannot be derived this returns false (old
+    // behavior: try the game patches, the catch below falls back to the
+    // standalone launcher), never "launcher only", which would stop the game
+    // from starting.
+    private static bool BootedOnBootstrapPck()
+    {
+        try
+        {
+            var filesDir = ResolveFilesDir();
+            if (filesDir == null)
+            {
+                PatchHelper.Log("Game PCK path: unresolved (files dir unknown)");
+                return false;
+            }
+            var pck = Path.Combine(filesDir, "game", "SlayTheSpire2.pck");
+            PatchHelper.Log($"Game PCK path: {pck}");
+            return !File.Exists(pck);
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"Game PCK path check failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static string _filesDir;
+    private static bool _filesDirResolved;
+
+    // The app's getFilesDir(), or null. First choice: the directory this
+    // assembly was loaded from (GodotApp.setupAssemblies copies assemblies to
+    // <filesDir>/.godot/mono/publish/arm64), walked up to the "files" ancestor.
+    // Second: the package name in /proc/self/cmdline.
+    private static string ResolveFilesDir()
+    {
+        if (_filesDirResolved)
+            return _filesDir;
+        _filesDirResolved = true;
+
+        try
+        {
+            foreach (var start in new[] { typeof(ModEntry).Assembly.Location, AppContext.BaseDirectory })
+            {
+                if (string.IsNullOrEmpty(start))
+                    continue;
+                var dir = Path.GetDirectoryName(start.TrimEnd('/'));
+                while (!string.IsNullOrEmpty(dir))
+                {
+                    if (
+                        Path.GetFileName(dir) == "files"
+                        && dir.StartsWith("/data/")
+                        && Directory.Exists(dir)
+                    )
+                        return _filesDir = dir;
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var raw = File.ReadAllBytes("/proc/self/cmdline");
+            int end = Array.IndexOf(raw, (byte)0);
+            var name = System.Text.Encoding.UTF8.GetString(raw, 0, end < 0 ? raw.Length : end);
+            int colon = name.IndexOf(':');
+            if (colon >= 0)
+                name = name.Substring(0, colon);
+            if (name.Contains('.') && !name.Contains('/'))
+            {
+                var dir = $"/data/user/0/{name}/files";
+                if (Directory.Exists(dir))
+                    return _filesDir = dir;
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     private static int TryCleanStaleMonoModFiles(string dir)

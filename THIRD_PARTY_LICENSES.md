@@ -24,6 +24,12 @@ This project uses the following third-party libraries and tools:
 - **Source**: https://github.com/Shane32/QRCoder
 - **Note**: Renders the Steam sign-in QR code.
 
+## Polly (Polly.Core)
+- **License**: BSD 3-Clause
+- **Copyright**: (c) 2015-present App vNext
+- **Source**: https://github.com/App-vNext/Polly
+- **Note**: Used as a NuGet package without modifications, for download retry and backoff.
+
 ## .NET Runtime (Mono)
 - **License**: MIT
 - **Copyright**: (c) .NET Foundation and Contributors

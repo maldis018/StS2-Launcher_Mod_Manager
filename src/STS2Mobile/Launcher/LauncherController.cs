@@ -20,6 +20,17 @@ public class LauncherController
     private volatile bool _checkingForGameUpdate;
     private volatile bool _checkingForLauncherUpdate;
     private bool _launchStageShown;
+    // True from the AutoConnect fast path until the connection attempt
+    // resolves. While set, a failed connection keeps the offline PLAY stage
+    // (see TryShowOfflineLaunchStage) instead of replacing it with the login
+    // form.
+    private bool _autoConnecting;
+    // Set after a fatal download failure while pending.json exists: the next
+    // press opens the branch picker instead of resuming the saved branch.
+    private bool _pickBranchOnResume;
+    // Set once the offline PLAY stage is up; later progress states of the
+    // still-running connection attempt must not wipe it.
+    private bool _offlineLaunchShown;
     private string _lastLaunchText = "LAUNCH";
     private bool _lastShowCloudSync;
     private bool _lastShowUpdate;
@@ -28,6 +39,12 @@ public class LauncherController
     // 로 마킹, DownloadCompleted 콜백에서 소비. true 였다면 NeedsRestartAfterBranchSwitch
     // set → Play 버튼이 Loc.Tr("앱 재시작 필요", "App restart required") 로 분기됨.
     private bool _pendingBranchSwitch;
+    // Set while the status line shows a retry or wait message instead of
+    // "Downloading..."; cleared by the first progress event after
+    // _statusHoldUntilMs so a brief retry message stays readable.
+    private bool _downloadInterrupted;
+    private ulong _statusHoldUntilMs;
+    private string _lastLoggedDownloadFile;
 
     // Reentrancy guard shared by every handler that touches local saves or
     // Steam Cloud (Save Manager, Local Backup, Push, Pull) — all of them
@@ -106,12 +123,39 @@ public class LauncherController
         _model.DownloadProgressChanged += p =>
             _runOnMainThread(() =>
             {
-                _view.Download.SetProgress(
-                    p.Percentage,
-                    $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)"
-                );
-                _view.AppendLog(p.CurrentFile);
+                if (_downloadInterrupted && Time.GetTicksMsec() >= _statusHoldUntilMs)
+                {
+                    _downloadInterrupted = false;
+                    _view.SetStatus(Loc.Tr("다운로드 중...", "Downloading..."));
+                }
+
+                var text = ProgressText(p);
+                _view.Download.SetProgress(p.Percentage, text);
+
+                // Log each file once rather than on every progress event.
+                if (!string.IsNullOrEmpty(p.CurrentFile) && p.CurrentFile != _lastLoggedDownloadFile)
+                {
+                    _lastLoggedDownloadFile = p.CurrentFile;
+                    _view.AppendLog(p.CurrentFile);
+                }
             });
+
+        // The foreground service must keep working while Android has stopped
+        // Godot's main loop (app in the background), when _runOnMainThread
+        // callbacks are not drained. So these go straight from the model's
+        // thread; DownloadBackgroundService serializes the JNI calls itself.
+        _model.DownloadProgressChanged += p =>
+            DownloadBackgroundService.Update(
+                p.Phase == DownloadPhase.Downloading ? p.Percentage : -1,
+                ProgressText(p)
+            );
+        _model.DownloadWaitingForNetwork += (round, secondsLeft) =>
+            DownloadBackgroundService.UpdateText(WaitingText(round, secondsLeft));
+        _model.DownloadCompleted += DownloadBackgroundService.Stop;
+        _model.DownloadCancelled += DownloadBackgroundService.Stop;
+        _model.DownloadPaused += DownloadBackgroundService.Stop;
+        _model.DownloadFailed += _ => DownloadBackgroundService.Stop();
+
         _model.DownloadLogReceived += msg => _runOnMainThread(() => _view.AppendLog(msg));
         _model.DownloadCompleted += () =>
             _runOnMainThread(() =>
@@ -162,13 +206,61 @@ public class LauncherController
                     return;
                 }
                 _view.SetStatus($"Download failed: {msg}");
-                _view.Download.Reset("RETRY DOWNLOAD");
+                if (_model.LastDownloadFailureFatal && LauncherModel.HasPendingDownload())
+                {
+                    // Retrying the saved branch would fail the same way (for
+                    // example it no longer exists), and the pending marker keeps
+                    // PLAY hidden, so let the player pick a branch again.
+                    _pickBranchOnResume = true;
+                    _view.SetStatus(
+                        $"Download failed: {msg}\n"
+                            + Loc.Tr(
+                                "다시 시도하거나 다른 브랜치를 선택하세요.",
+                                "Choose a branch to try again."
+                            )
+                    );
+                    _view.Download.Reset("CHOOSE BRANCH");
+                    return;
+                }
+                _view.Download.Reset(ResumeOrRetryButtonText());
             });
         _model.DownloadCancelled += () =>
             _runOnMainThread(() =>
             {
                 _view.SetStatus("Download cancelled");
+                _view.Download.SetPauseVisible(false);
                 _view.Download.SetButtonDisabled(false);
+            });
+        _model.DownloadPaused += () =>
+            _runOnMainThread(() =>
+            {
+                _downloadInterrupted = false;
+                _view.SetStatus(Loc.Tr("다운로드 일시정지됨", "Download paused"));
+                _view.Download.Reset(ResumeOrRetryButtonText());
+            });
+        _model.DownloadRetrying += info =>
+            _runOnMainThread(() =>
+            {
+                // Skip a retry message that arrives within 3 s of the previous
+                // one so the text stays readable. This does not protect the
+                // waiting-for-network message (its handler clears the hold).
+                if (_downloadInterrupted && Time.GetTicksMsec() < _statusHoldUntilMs)
+                    return;
+                _downloadInterrupted = true;
+                _statusHoldUntilMs = Time.GetTicksMsec() + 3000;
+                _view.SetStatus(
+                    Loc.Tr(
+                        $"다운로드 재시도 중 ({info.Attempt}/{info.MaxAttempts})",
+                        $"Retrying download ({info.Attempt}/{info.MaxAttempts})"
+                    )
+                );
+            });
+        _model.DownloadWaitingForNetwork += (round, secondsLeft) =>
+            _runOnMainThread(() =>
+            {
+                _downloadInterrupted = true;
+                _statusHoldUntilMs = 0;
+                _view.SetStatus(WaitingText(round, secondsLeft));
             });
         _model.UpdateCheckCompleted += hasUpdate =>
             _runOnMainThread(() =>
@@ -199,6 +291,7 @@ public class LauncherController
         _view.QrLogin.RefreshRequested += StartQrLogin;
         _view.Code.CodeSubmitted += OnCodeSubmitPressed;
         _view.Download.DownloadRequested += OnDownloadPressed;
+        _view.Download.PauseRequested += () => _model.PauseDownload();
         _view.Actions.LaunchPressed += OnLaunchPressed;
         _view.Actions.RetryPressed += OnRetryPressed;
         _view.Actions.LocalBackupPressed += OnLocalBackupPressed;
@@ -286,6 +379,8 @@ public class LauncherController
                 break;
 
             case FastPathResult.AutoConnect:
+                _autoConnecting = true;
+                _offlineLaunchShown = false;
                 _model.Connect();
                 StartConnectionTimeout();
                 break;
@@ -506,14 +601,12 @@ public class LauncherController
                 or SessionState.VerifyingOwnership
         )
         {
-            if (_model.HasOwnershipMarker() && LauncherModel.GameFilesReady())
+            if (CanLaunchOffline())
             {
                 _runOnMainThread(() =>
                 {
-                    _view.SetStatus("No connection — saved credentials will be used");
                     _view.AppendLog("Connection timed out. Valid ownership marker found.");
-                    var text = ResolveLaunchButtonText();
-                    ShowLaunchStage(text, showCloudSync: true, showUpdate: false);
+                    ShowOfflineLaunchStage();
                 });
             }
             else
@@ -525,6 +618,32 @@ public class LauncherController
                 });
             }
         }
+    }
+
+    // The saved ownership marker plus installed game files are enough to play
+    // without a connection.
+    private bool CanLaunchOffline() =>
+        _model.HasOwnershipMarker() && LauncherModel.GameFilesReady();
+
+    // PLAY without a connection, used when the AutoConnect attempt times out or
+    // fails. After an interrupted update this is the only way back into the
+    // game while offline, so say that the update is still pending.
+    private void ShowOfflineLaunchStage()
+    {
+        _offlineLaunchShown = true;
+        var status = Loc.Tr(
+            "연결 없음. 저장된 자격 증명을 사용합니다.",
+            "No connection. Saved credentials will be used."
+        );
+        if (LauncherModel.HasPendingDownload())
+            status +=
+                " "
+                + Loc.Tr(
+                    "이전 업데이트가 완료되지 않았습니다. 온라인 상태에서 런처를 다시 시작하면 이어받을 수 있습니다.",
+                    "The last update is incomplete; restart the launcher while online to resume it."
+                );
+        _view.SetStatus(status);
+        ShowLaunchStage(ResolveLaunchButtonText(), showCloudSync: true, showUpdate: false);
     }
 
     // Updates visible sections and status text based on session state transitions.
@@ -550,6 +669,45 @@ public class LauncherController
         if (_view.ModManager.Visible)
             return;
 
+        if (_autoConnecting)
+        {
+            // Connect() reports Connecting, VerifyingOwnership (both at once,
+            // before any network use) and then, offline after about 15 s,
+            // Failed. The flag must survive the progress states, so they only
+            // keep an already shown offline PLAY stage and otherwise fall
+            // through untouched.
+            if (
+                state
+                is SessionState.Connecting
+                    or SessionState.Authenticating
+                    or SessionState.VerifyingOwnership
+            )
+            {
+                if (_offlineLaunchShown)
+                    return;
+            }
+            else
+            {
+                // LoggedIn, Failed and the rest end the attempt.
+                _autoConnecting = false;
+                _offlineLaunchShown = false;
+                if (state == SessionState.Failed && _model.FailedOnConnection && CanLaunchOffline())
+                {
+                    // Offline with an interrupted update: AutoConnect was chosen
+                    // over the fast path, but a connection failure must not lock
+                    // the player out of the game (the 10 s timeout may not have
+                    // fired yet, or already showed PLAY, which the login form
+                    // would replace).
+                    _model.ConnectionResolved = true;
+                    PatchHelper.Log(
+                        $"[Launcher] Connect failed offline ({_model.FailReason}); keeping PLAY"
+                    );
+                    ShowOfflineLaunchStage();
+                    return;
+                }
+            }
+        }
+
         _view.HideAllSections();
 
         switch (state)
@@ -573,7 +731,27 @@ public class LauncherController
             case SessionState.LoggedIn:
                 _model.ConnectionResolved = true;
                 _view.SetStatus($"Logged in as {_model.AccountName}");
-                if (LauncherModel.GameFilesReady())
+                if (_model.IsDownloadRunning)
+                {
+                    // A reconnect mid-download: leave the progress UI alone.
+                    _view.Download.Visible = true;
+                }
+                else if (LauncherModel.HasPendingDownload())
+                {
+                    // Interrupted update: the install may mix old and new
+                    // files, so offer RESUME instead of PLAY.
+                    _view.SetStatus(
+                        Loc.Tr(
+                            "업데이트가 완료되지 않았습니다. 이어받기를 눌러 계속하세요.",
+                            "Update incomplete. Tap RESUME DOWNLOAD to continue."
+                        )
+                    );
+                    _view.Download.Visible = true;
+                    _view.Download.Reset(
+                        _pickBranchOnResume ? "CHOOSE BRANCH" : ResumeOrRetryButtonText()
+                    );
+                }
+                else if (LauncherModel.GameFilesReady())
                 {
                     var text = ResolveLaunchButtonText();
                     ShowLaunchStage(text, showCloudSync: true, showUpdate: true);
@@ -611,6 +789,17 @@ public class LauncherController
 
     private async void OnDownloadPressed()
     {
+        // An interrupted download resumes on the branch it was started on
+        // (saved as the selected branch before it began), without asking again.
+        if (LauncherModel.HasPendingDownload() && !_pickBranchOnResume)
+        {
+            _view.Download.ShowProgress(
+                Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...")
+            );
+            await RunDownloadAsync(LauncherModel.LoadSelectedBranch());
+            return;
+        }
+
         _view.Download.ShowProgress("Loading branches...");
 
         System.Collections.Generic.List<SteamBranchInfo> branches;
@@ -645,7 +834,66 @@ public class LauncherController
         _view.Download.ShowProgress(
             picked == "public" ? "Connecting to Steam..." : $"Connecting to Steam ({picked})..."
         );
-        await _model.StartDownloadAsync(picked);
+        await RunDownloadAsync(picked);
+    }
+
+    // Starts the download with the pause button and the Android foreground
+    // service (keeps it running with the screen off; see DownloadService.java).
+    // The terminal download events stop the service again.
+    private async Task RunDownloadAsync(string branch)
+    {
+        _lastLoggedDownloadFile = null;
+        _pickBranchOnResume = false;
+        // Loc's language is read lazily from Godot; load it here on the main
+        // thread because the service updates format texts on worker threads.
+        _ = Loc.IsKo;
+        // Replace a stale "Download paused" / failure text right away; the
+        // first progress events after a short hold switch it to "Downloading...".
+        _view.SetStatus(
+            LauncherModel.HasPendingDownload()
+                ? Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...")
+                : Loc.Tr("다운로드 중...", "Downloading...")
+        );
+        _downloadInterrupted = true;
+        _statusHoldUntilMs = Time.GetTicksMsec() + 2000;
+        _view.Download.SetPauseVisible(true);
+        DownloadBackgroundService.Start(
+            Loc.Tr("게임 파일 다운로드 중", "Downloading game files"),
+            Loc.Tr("Steam에 연결 중...", "Connecting to Steam...")
+        );
+        await _model.StartDownloadAsync(branch);
+    }
+
+    private static string ProgressText(DownloadProgress p) =>
+        p.Phase switch
+        {
+            DownloadPhase.Preparing => Loc.Tr("다운로드 준비 중...", "Preparing download..."),
+            DownloadPhase.Verifying => Loc.Tr("기존 파일 확인 중...", "Verifying existing files..."),
+            DownloadPhase.Finishing => Loc.Tr("마무리 중...", "Finishing up..."),
+            _ =>
+                $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)",
+        };
+
+    // Used for the status line and the notification (the latter on the model's
+    // thread, so nothing here may touch Godot beyond the cached Loc language).
+    private static string WaitingText(int round, int secondsLeft) =>
+        secondsLeft > 0
+            ? Loc.Tr(
+                $"네트워크 연결을 기다리는 중... {secondsLeft}초 후 재시도",
+                $"Waiting for network... retrying in {secondsLeft}s"
+            ) + $" ({round}/{LauncherModel.MaxAutoResumeRounds})"
+            : Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...");
+
+    // Button label after a download stops: RESUME when partial progress is
+    // kept on disk, with the percentage when it is known.
+    private static string ResumeOrRetryButtonText()
+    {
+        var pending = LauncherModel.ReadPendingDownload();
+        if (pending == null)
+            return "RETRY DOWNLOAD";
+        return pending.TotalBytes > 0
+            ? $"RESUME DOWNLOAD ({pending.Percentage:F0}%)"
+            : "RESUME DOWNLOAD";
     }
 
     private async void OnCheckGameUpdatePressed()
@@ -919,7 +1167,7 @@ public class LauncherController
         var tcs = new TaskCompletionSource<string>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        using var probeCts = new CancellationTokenSource();
+        var probeCts = new CancellationTokenSource();
         BranchPickerDialog dialog = null;
 
         // The image-cache repair only makes sense once game files exist (it wipes
@@ -969,6 +1217,17 @@ public class LauncherController
 
         var picked = await tcs.Task;
         probeCts.Cancel();
+        // Don't wait for the probe to wind down: a CDN request already in
+        // flight can't be cancelled (SteamKit2 takes no token for it) and runs
+        // until its timeout. The probe has its own DepotDownloader, so it can
+        // finish alongside the download; late results go to a closed dialog
+        // and are dropped by the IsInstanceValid check above.
+        _ = ObserveProbeAsync(probe, probeCts);
+        return picked;
+    }
+
+    private static async Task ObserveProbeAsync(Task probe, CancellationTokenSource probeCts)
+    {
         try
         {
             await probe;
@@ -978,7 +1237,10 @@ public class LauncherController
         {
             PatchHelper.Log($"[Launcher] Branch version probe failed: {ex.Message}");
         }
-        return picked;
+        finally
+        {
+            probeCts.Dispose();
+        }
     }
 
     private void ShowAtlasWipeConfirm()

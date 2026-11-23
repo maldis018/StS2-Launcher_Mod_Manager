@@ -22,6 +22,13 @@
   <!-- In-app launcher self-update (issue #12). Per-source "install unknown apps"
        toggle is gated by the user in system settings on Android 8+. -->
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+  <!-- Game downloads: a dataSync foreground service keeps a multi-GB download
+       alive with the screen off or the app in the background (DownloadService).
+       POST_NOTIFICATIONS is optional; the service runs without it. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
 
   <supports-screens
     android:smallScreens="true"
@@ -63,6 +70,12 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+
+    <service
+      android:name=".DownloadService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync"
+    />
   </application>
   <!-- The Godot library AAR already declares FileProvider with authority
        ${applicationId}.fileprovider and meta-data resource @xml/godot_provider_paths.

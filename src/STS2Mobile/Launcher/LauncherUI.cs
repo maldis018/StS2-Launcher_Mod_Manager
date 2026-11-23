@@ -256,6 +256,20 @@ public class LauncherUI : Control
             _windowScaleOverridden = false;
         }
 
+        // Dispose below cancels any running download, but the controller's
+        // cancel handler (which normally stops the service) runs on a main
+        // thread tick that may never come once the launcher is gone. Stop the
+        // foreground service here so its notification can't outlive the
+        // launcher.
+        try
+        {
+            DownloadBackgroundService.Stop();
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Launcher] OnExitTree download service stop failed: {ex.Message}");
+        }
+
         try
         {
             _model?.Dispose();

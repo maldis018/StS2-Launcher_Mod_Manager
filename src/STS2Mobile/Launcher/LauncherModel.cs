@@ -27,6 +27,9 @@ public class LauncherModel : IDisposable
     private CancellationTokenSource _qrCts;
     private DepotDownloader _downloader;
     private CancellationTokenSource _downloadCts;
+    private volatile bool _pauseRequested;
+    private volatile bool _downloadRunning;
+
     private TaskCompletionSource<bool> _launchTcs;
     private TaskCompletionSource<string> _codeTcs;
     private SessionState _state = SessionState.Disconnected;
@@ -35,6 +38,15 @@ public class LauncherModel : IDisposable
     public volatile bool OfflineMode;
     public volatile bool ConnectionResolved;
     public volatile bool AwaitingCode;
+
+    // True when the last Connect() failed with an exception (no network, DNS,
+    // timeout) rather than a definite answer such as "you don't own the game".
+    // Lets the controller keep PLAY for offline players only.
+    public volatile bool FailedOnConnection;
+
+    // True when the last download failure was not transient (it would fail
+    // again the same way), so a plain RESUME is no way out.
+    public volatile bool LastDownloadFailureFatal;
 
     // Issue #45: 브랜치 전환으로 PCK 가 in-process 갱신되면 dst dll 과 mismatch
     // — process restart 필요. LauncherUI 가 이걸 보고 Play→Restart 분기.
@@ -88,6 +100,14 @@ public class LauncherModel : IDisposable
     public event Action DownloadCompleted;
     public event Action<string> DownloadFailed;
     public event Action DownloadCancelled;
+    public event Action DownloadPaused;
+
+    // A single request is being retried (attempt counts from 1).
+    public event Action<DownloadRetryInfo> DownloadRetrying;
+
+    // The whole download is waiting before automatic resume round `round`;
+    // `secondsLeft` counts down to 0, which means "resuming now".
+    public event Action<int, int> DownloadWaitingForNetwork;
     public event Action<bool> UpdateCheckCompleted;
     public event Action<string> UpdateCheckFailed;
 
@@ -143,8 +163,14 @@ public class LauncherModel : IDisposable
         );
 
         // Even with a valid marker, refuse the fast path if the PCK isn't on
-        // disk — otherwise PLAY would launch into a broken game.
-        if (_credentialStore.HasCredentials && hasMarker && GameFilesReady())
+        // disk — otherwise PLAY would launch into a broken game. The same goes
+        // for an interrupted update: the install may mix old and new files, so
+        // connect and offer RESUME instead. (Offline, the connection timeout
+        // fallback still shows PLAY, so nobody is locked out of the game.)
+        bool pending = HasPendingDownload();
+        if (pending)
+            PatchHelper.Log("[Launcher] Interrupted download found; skipping fast path");
+        if (_credentialStore.HasCredentials && hasMarker && GameFilesReady() && !pending)
             return FastPathResult.ReadyToLaunch;
 
         if (_credentialStore.HasCredentials)
@@ -157,6 +183,7 @@ public class LauncherModel : IDisposable
     // credentials but no ownership marker.
     public async void Connect()
     {
+        FailedOnConnection = false;
         SetState(SessionState.Connecting);
 
         try
@@ -175,6 +202,7 @@ public class LauncherModel : IDisposable
         catch (Exception ex)
         {
             PatchHelper.Log($"[Launcher] Connection failed: {ex.Message}");
+            FailedOnConnection = true;
             SetState(
                 SessionState.Failed,
                 "Could not connect to Steam. Check your internet connection."
@@ -444,36 +472,201 @@ public class LauncherModel : IDisposable
 
     public async Task StartDownloadAsync(string branch = null)
     {
-        await EnsureConnectedAsync();
-        if (_state != SessionState.LoggedIn || _connection == null)
-        {
-            DownloadFailed?.Invoke(null);
-            return;
-        }
-
-        _downloader?.Dispose();
-        _downloader = new DepotDownloader(_connection, _dataDir);
-        _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
-        _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
-
+        // The download counts as running from the first await, so a PAUSE
+        // pressed while connecting is recorded (and honored below) instead of
+        // being ignored with the button left disabled.
         _downloadCts = new CancellationTokenSource();
-        var resolvedBranch = branch ?? LoadSelectedBranch();
+        var token = _downloadCts.Token;
+        _pauseRequested = false;
+        LastDownloadFailureFatal = false;
+        _downloadRunning = true;
 
         try
         {
-            await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, _downloadCts.Token));
+            await EnsureConnectedAsync();
+            if (_state != SessionState.LoggedIn || _connection == null)
+            {
+                DownloadFailed?.Invoke(null);
+                return;
+            }
+
+            // Paused or cancelled while connecting: nothing downloaded yet.
+            token.ThrowIfCancellationRequested();
+
+            _downloader?.Dispose();
+            _downloader = new DepotDownloader(_connection, _dataDir);
+            _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
+            _downloader.ProgressChanged += p =>
+            {
+                _lastProgress = p;
+                DownloadProgressChanged?.Invoke(p);
+            };
+            _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
+
+            // Pure .NET heartbeat, independent of Godot: tells a stalled
+            // download (no lines at all) from a quiet one (lines with no growth).
+            using var aliveTimer = new System.Threading.Timer(
+                _ => LogAlive(_downloader),
+                null,
+                AliveIntervalMs,
+                AliveIntervalMs
+            );
+
+            var resolvedBranch = branch ?? LoadSelectedBranch();
+
+            // When the network is gone long enough for a request to exhaust its
+            // own retries, wait and run the whole download again instead of
+            // failing. That is cheap: DepotDownloader keeps verified files and
+            // partial chunks, so each round only fetches what is still missing.
+            //
+            // `round` counts consecutive rounds that fetched nothing new, so the
+            // cap only ends a download that is truly stuck; a flaky connection
+            // that keeps making progress keeps going. A round made progress when
+            // it fetched chunk data from the CDN (DepotDownloader.FetchedBytes
+            // grew). Chunks resumed from partial files or files that were
+            // already complete don't count, since they were fetched earlier.
+            int round = 0;
+            long progressMark = 0;
+            while (true)
+            {
+                try
+                {
+                    // ConfigureAwait(false): the rest of the download must not wait
+                    // for Godot's main loop, which Android stops while the app is
+                    // in the background (see DownloadBackgroundService).
+                    await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, token))
+                        .ConfigureAwait(false);
+                    break;
+                }
+                catch (Exception ex) when (DownloadResilience.IsTransient(ex, token))
+                {
+                    long fetched = _downloader.FetchedBytes;
+                    if (fetched > progressMark)
+                    {
+                        if (round > 0)
+                            PatchHelper.Log(
+                                $"[Launcher] Download made progress ({FormatSize(fetched - progressMark)} fetched); auto-resume count reset"
+                            );
+                        round = 0;
+                        progressMark = fetched;
+                    }
+                    if (round >= AutoResumeDelays.Length)
+                        throw;
+
+                    var delay = AutoResumeDelays[round];
+                    PatchHelper.Log(
+                        $"[Launcher] Download interrupted ({ex.Message}); auto-resume {round + 1}/{AutoResumeDelays.Length} in {delay.TotalSeconds:F0}s"
+                    );
+                    DownloadLogReceived?.Invoke($"Download interrupted: {ex.Message}");
+                    await WaitBeforeAutoResumeAsync(round + 1, delay, token).ConfigureAwait(false);
+                    round++;
+                }
+            }
+
             WriteCacheStampAfterDownload(resolvedBranch, _downloader.LastDownloadedBuildId);
             DownloadCompleted?.Invoke();
         }
-        catch (OperationCanceledException)
+        // Any error once the user has cancelled is part of stopping (a request
+        // in flight can fail with a network error instead of a cancel), so it
+        // is reported as a cancel, not a failure.
+        catch (Exception ex) when (token.IsCancellationRequested)
         {
-            DownloadCancelled?.Invoke();
+            if (ex is not OperationCanceledException)
+                PatchHelper.Log($"[Launcher] Download stopped by user; ignoring {ex.GetType().Name}: {ex.Message}");
+            if (_pauseRequested)
+                DownloadPaused?.Invoke();
+            else
+                DownloadCancelled?.Invoke();
         }
         catch (Exception ex)
         {
+            LastDownloadFailureFatal = !DownloadResilience.IsTransient(ex, token);
             DownloadFailed?.Invoke(ex.Message);
             PatchHelper.Log($"[Launcher] Download error: {ex}");
         }
+        finally
+        {
+            _downloadRunning = false;
+        }
+    }
+
+    public bool IsDownloadRunning => _downloadRunning;
+
+    private const int AliveIntervalMs = 15000;
+    private volatile DownloadProgress _lastProgress;
+    private int _aliveLogging;
+
+    // Runs on a thread-pool thread. Skips a tick while the previous one is
+    // still writing, so a blocked log sink can't pile up threads.
+    private void LogAlive(DepotDownloader downloader)
+    {
+        if (downloader == null || Interlocked.Exchange(ref _aliveLogging, 1) == 1)
+            return;
+        try
+        {
+            var p = _lastProgress;
+            PatchHelper.Log(
+                $"[Depot] alive: fetched={downloader.FetchedBytes} downloaded={(p == null ? 0 : Interlocked.Read(ref p.DownloadedBytes))} phase={(p == null ? "none" : p.Phase.ToString())}"
+            );
+            var stuck = DownloadBackgroundService.DescribeStuckCall();
+            if (stuck != null)
+                PatchHelper.Log($"[Launcher] Download service bridge call {stuck}");
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Launcher] alive log failed: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _aliveLogging, 0);
+        }
+    }
+
+    // Stops the running download but keeps everything fetched so far; the
+    // next StartDownloadAsync resumes from there. Chunks already in flight
+    // finish first (SteamKit2 can't cancel them), so this takes a moment.
+    public void PauseDownload()
+    {
+        if (!_downloadRunning)
+            return;
+        _pauseRequested = true;
+        _downloadCts?.Cancel();
+    }
+
+    private static string DownloadStateDir => Path.Combine(OS.GetDataDir(), "download_state");
+
+    // Non-null while a game download has started changing files and not yet
+    // finished (see PendingDownload).
+    public static PendingDownload ReadPendingDownload() => PendingDownload.Read(DownloadStateDir);
+
+    public static bool HasPendingDownload() =>
+        File.Exists(PendingDownload.PathFor(DownloadStateDir));
+
+    // Waits between automatic resume rounds: 15 s, 30 s, 1, 2, then 5 minutes
+    // three times, about 19 minutes without progress before the download is
+    // reported as failed (the user can still resume by hand after that).
+    private static readonly TimeSpan[] AutoResumeDelays =
+    {
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromSeconds(60),
+        TimeSpan.FromSeconds(120),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(5),
+    };
+
+    public static int MaxAutoResumeRounds => AutoResumeDelays.Length;
+
+    // Ticks once per second so the UI can show a countdown.
+    private async Task WaitBeforeAutoResumeAsync(int round, TimeSpan delay, CancellationToken ct)
+    {
+        for (int left = (int)delay.TotalSeconds; left > 0; left--)
+        {
+            DownloadWaitingForNetwork?.Invoke(round, left);
+            await Task.Delay(1000, ct);
+        }
+        DownloadWaitingForNetwork?.Invoke(round, 0);
     }
 
     // Reads the just-downloaded release_info.json and writes a CacheStamp.

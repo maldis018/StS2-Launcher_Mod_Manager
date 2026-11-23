@@ -1,18 +1,36 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Polly;
+using STS2Mobile.Launcher.Components;
 using SteamKit2;
 using SteamKit2.CDN;
 
 namespace STS2Mobile.Steam;
 
+public enum DownloadPhase
+{
+    // Fetching app info, CDN servers and manifests.
+    Preparing,
+
+    // Hashing files already on disk to decide what to download.
+    Verifying,
+    Downloading,
+
+    // Patching the PCK and saving manifests.
+    Finishing,
+}
+
 public class DownloadProgress
 {
+    public DownloadPhase Phase;
     public long TotalBytes;
     public long DownloadedBytes;
     public int TotalFiles;
@@ -23,13 +41,29 @@ public class DownloadProgress
 }
 
 // Downloads game files from Steam CDN using SteamKit2. Supports delta updates
-// by comparing manifests, concurrent chunk downloads, and server rotation with
-// retry logic. Also patches the PCK to remove the Sentry plugin (no ARM64 build).
+// by comparing manifests, concurrent chunk downloads, chunk-level resume, and
+// server rotation with backoff retries (DownloadResilience). Also patches the
+// PCK to remove the Sentry plugin (no ARM64 build).
 public class DepotDownloader : IDisposable
 {
     private const uint AppId = 2868840;
-    private const int MaxRetries = 5;
     private const int MaxConcurrentDownloads = 8;
+    private const string PckFileName = "SlayTheSpire2.pck";
+    private const string TempSuffix = ".downloading";
+    private const long FlushIntervalBytes = 32L * 1024 * 1024;
+
+    // Seed changed files from the version already on disk: any chunk whose
+    // SHA-1 matches the new manifest is copied locally instead of downloaded.
+    // A small game patch then fetches only the changed parts of the ~3 GB PCK.
+    // Every copied chunk is hash-checked and the finished file is verified as a
+    // whole, so the result is identical to a full download. Branch switches are
+    // unaffected (they wipe the game directory first). Set to false to disable.
+    private const bool ReuseLocalChunks = true;
+
+    // ProgressChanged fires at most this often (it used to fire per chunk,
+    // flooding the UI thread and the log). Phase changes always fire.
+    private const long ProgressIntervalMs = 250;
+    private static readonly TimeSpan PendingWriteInterval = TimeSpan.FromSeconds(5);
 
     private readonly SteamConnection _connection;
     private readonly string _gameDir;
@@ -37,24 +71,77 @@ public class DepotDownloader : IDisposable
     private readonly Client _cdnClient;
     private readonly DownloadProgress _progress = new();
 
+    // Files already proven to match their manifest during this instance's
+    // lifetime, keyed by path. Within one DownloadAsync each file is checked
+    // only once (in prepare), so the cache pays off only when DownloadAsync
+    // runs again on the same instance, e.g. an in-session auto-resume: that
+    // rerun's prepare skips re-hashing files the earlier attempt verified or
+    // finished. A caller that builds a new DepotDownloader per attempt starts
+    // with an empty cache.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string,
+        (long Length, DateTime WriteTimeUtc, string Sha1Hex)
+    > _verifiedFiles = new();
+
+    // The opposite: files that failed verification, with the length, mtime and
+    // expected hash they failed at. Each auto-resume round runs the verify pass
+    // again, and without this a corrupt or outdated ~3 GB PCK would be hashed
+    // again every round. Any change to the file (or a new expected hash)
+    // misses the cache, so a file is never trusted or condemned on stale data.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string,
+        (long Length, DateTime WriteTimeUtc, string Sha1Hex)
+    > _failedFiles = new();
+
+    private readonly object _pendingLock = new();
+    private PendingDownload _pending;
+    private long _resumedBytes;
+    private long _reusedBytes;
+    private long _lastProgressTick;
+
+    // Chunk bytes fetched from the CDN and written to a partial file by this
+    // instance, over all attempts. Never reset: LauncherModel compares it
+    // between auto-resume rounds to tell real progress from a stalled round.
+    // DownloadedBytes can't serve for that, since every attempt restarts it
+    // and counts only part of what earlier attempts already finished.
+    private long _fetchedBytes;
+    public long FetchedBytes => Interlocked.Read(ref _fetchedBytes);
+
+    private readonly ResiliencePipeline _cdnPipeline;
+    private readonly ResiliencePipeline _steamPipeline;
+
     private IReadOnlyList<Server> _servers;
     private int _serverIndex;
-    private readonly Dictionary<(uint, string), string> _cdnAuthTokens = new();
+
+    // Touched by all download workers at once, hence concurrent.
+    private readonly ConcurrentDictionary<(uint, string), string> _cdnAuthTokens = new();
+
     // Keyed by (depot, manifest): request codes are issued per manifest, so a
     // code cached for the public manifest must not be reused for a beta one
     // (the branch version probe asks for several manifests of the same depot).
-    private readonly Dictionary<
+    private readonly ConcurrentDictionary<
         (uint DepotId, ulong ManifestId),
         (ulong Code, DateTime Expiry)
     > _manifestRequestCodes = new();
+    private readonly ConcurrentDictionary<uint, byte[]> _depotKeys = new();
     private readonly Dictionary<
         uint,
         SteamApps.PICSProductInfoCallback.PICSProductInfo
     > _appInfoCache = new();
-    private readonly Dictionary<uint, byte[]> _depotKeys = new();
 
     public event Action<DownloadProgress> ProgressChanged;
     public event Action<string> LogMessage;
+
+    // Fired for every scheduled request retry (from any worker thread).
+    public event Action<DownloadRetryInfo> RetryScheduled;
+
+    static DepotDownloader()
+    {
+        // SteamKit2's defaults (10 s to first byte) are tight for mobile data.
+        // These bound a hung request; the retry policy handles the rest.
+        Client.RequestTimeout = TimeSpan.FromSeconds(20);
+        Client.ResponseBodyTimeout = TimeSpan.FromSeconds(60);
+    }
 
     // Set by DownloadAsync from depots/branches/<branch>/buildid in PICS info.
     // Read by LauncherModel after a successful download to stamp the cache.
@@ -66,6 +153,16 @@ public class DepotDownloader : IDisposable
         _gameDir = Path.Combine(dataDir, "game");
         _stateDir = Path.Combine(dataDir, "download_state");
         _cdnClient = new Client(connection.Client);
+        _cdnPipeline = DownloadResilience.CreateCdnPipeline(OnRetry);
+        _steamPipeline = DownloadResilience.CreateSteamPipeline(OnRetry);
+    }
+
+    private void OnRetry(DownloadRetryInfo info)
+    {
+        Log(
+            $"{info.Operation} failed ({info.Reason}); retry {info.Attempt}/{info.MaxAttempts} in {info.Delay.TotalSeconds:F1}s"
+        );
+        RetryScheduled?.Invoke(info);
     }
 
     // Returns true if any depot has a newer manifest than what's cached locally.
@@ -104,17 +201,32 @@ public class DepotDownloader : IDisposable
     public async Task DownloadAsync(string branch = "public", CancellationToken ct = default)
     {
         _connection.SuspendIdleTimeout();
+        // A caller may run DownloadAsync more than once on the same instance.
+        // Clear any marker object left over from a failed attempt: otherwise
+        // the ReportProgress below, which runs before this attempt assigns its
+        // own marker, would write the old attempt's branch, build and depots
+        // back to disk with this attempt's totals.
+        _pending = null;
+        // A later attempt (LauncherModel's auto-resume) may run on a different
+        // network, where a cached SteamCache or CDN pick no longer applies.
+        _servers = null;
         try
         {
             Directory.CreateDirectory(_gameDir);
             Directory.CreateDirectory(_stateDir);
+            _progress.DownloadedBytes = 0;
+            _progress.TotalBytes = 0;
+            SetPhase(DownloadPhase.Preparing);
 
             Log($"Fetching app info (branch={branch})...");
-            var appInfo = await FetchAppInfoAsync();
+            var appInfo = await _steamPipeline.ExecuteAsync(
+                async _ => await FetchAppInfoAsync(),
+                ct
+            );
             var depotSection = appInfo.KeyValues["depots"];
             var depots = await ParseDepotsAsync(depotSection, branch);
             if (depots.Count == 0)
-                throw new Exception("No downloadable depots found");
+                throw new DownloadFatalException("No downloadable depots found");
 
             var branchInfo = depotSection["branches"][branch];
             LastDownloadedBuildId =
@@ -122,16 +234,85 @@ public class DepotDownloader : IDisposable
 
             await EnsureServersAsync(ct);
 
+            // Read-only preparation first: fetch every manifest and verify the
+            // install before anything on disk changes, so a failure here leaves
+            // the existing game exactly as it was.
+            var plans = new List<DepotPlan>();
             foreach (var (depotId, manifestId) in depots)
             {
                 ct.ThrowIfCancellationRequested();
-                await DownloadDepotAsync(depotId, manifestId, branch, ct);
+                plans.Add(await PrepareDepotAsync(depotId, manifestId, branch, ct));
             }
 
-            Log("All game files downloaded!");
+            // Totals cover the whole update, including files an earlier
+            // interrupted attempt already finished, so the bar does not
+            // restart from 0. Bytes sitting in partial *.downloading temps are
+            // not counted here: temps are preallocated to full length, so only
+            // the per-chunk SHA-1 check in DownloadFileAsync can tell how much
+            // of one is real. Those bytes are added as each chunk revalidates,
+            // so on resume the bar starts below the last value shown and
+            // fast-forwards while the partial files are re-read.
+            long alreadyDone = plans.Sum(p => p.AlreadyCompleteBytes);
+            _progress.TotalFiles = plans.Sum(p => p.FilesToDownload.Count);
+            _progress.CompletedFiles = 0;
+            _progress.TotalBytes =
+                alreadyDone + plans.Sum(p => p.FilesToDownload.Sum(f => (long)f.TotalSize));
+            _progress.DownloadedBytes = alreadyDone;
+            _resumedBytes = 0;
+            _reusedBytes = 0;
+            SetPhase(DownloadPhase.Downloading);
 
-            // Remove Sentry plugin references (no android.arm64 build exists).
-            PatchGamePck(Path.Combine(_gameDir, "SlayTheSpire2.pck"));
+            bool changesFiles = plans.Any(p =>
+                p.FilesToDownload.Count > 0 || p.FilesToDelete.Count > 0
+            );
+            if (changesFiles)
+            {
+                _pending = new PendingDownload
+                {
+                    Branch = branch,
+                    BuildId = LastDownloadedBuildId,
+                    Depots = plans
+                        .Select(p => new PendingDepot
+                        {
+                            DepotId = p.DepotId,
+                            ManifestId = p.ManifestId,
+                        })
+                        .ToList(),
+                    StartedUtc = PendingDownload.Read(_stateDir)?.StartedUtc is DateTime started
+                        && started != default
+                        ? started
+                        : DateTime.UtcNow,
+                };
+                // The marker must exist before the first file changes, so a
+                // failure to write it stops the download. It is a storage
+                // problem (full or read-only data dir), not a network one.
+                Storage(PendingMarkerLabel, () => WritePendingMarker(force: true));
+            }
+
+            DeleteOrphanedTempFiles(plans);
+
+            foreach (var plan in plans)
+            {
+                ct.ThrowIfCancellationRequested();
+                await DownloadDepotFilesAsync(plan, ct);
+            }
+
+            SetPhase(DownloadPhase.Finishing);
+            Log("All game files downloaded!");
+            if (_resumedBytes > 0)
+                Log($"Resumed {FormatSize(_resumedBytes)} from partial files");
+            if (_reusedBytes > 0)
+                Log($"Reused {FormatSize(_reusedBytes)} from installed files instead of downloading");
+
+            // Remove Sentry plugin references (no android.arm64 build exists),
+            // then record the patched hash so later verification passes accept
+            // the patched PCK instead of re-downloading it.
+            var pckPath = Path.Combine(_gameDir, PckFileName);
+            if (PatchGamePck(pckPath))
+                RecordPatchedPck(pckPath, plans);
+
+            _pending = null;
+            PendingDownload.Delete(_stateDir);
         }
         finally
         {
@@ -215,7 +396,7 @@ public class DepotDownloader : IDisposable
             }
         }
 
-        throw new Exception("Failed to get app info from Steam");
+        throw new DownloadTransientException("Failed to get app info from Steam");
     }
 
     private async Task<List<(uint DepotId, ulong ManifestId)>> ParseDepotsAsync(
@@ -326,18 +507,40 @@ public class DepotDownloader : IDisposable
 
     private async Task<string> GetCdnAuthToken(uint depotId, Server server)
     {
-        var key = (depotId, server.Host);
-        if (_cdnAuthTokens.TryGetValue(key, out var cached))
-            return cached;
-
         var result = await _connection.Content.GetCDNAuthToken(AppId, depotId, server.Host);
         if (result.Result == EResult.OK)
         {
-            _cdnAuthTokens[key] = result.Token;
+            _cdnAuthTokens[(depotId, server.Host)] = result.Token;
             return result.Token;
         }
 
         return null;
+    }
+
+    // Runs one CDN request against one server. Some hosts answer 403 until
+    // given a per-depot auth token: fetch one and try this server once more.
+    // Any failure, including from the second try, goes back to the retry
+    // policy, which moves on to the next server.
+    private async Task<T> WithCdnAuthAsync<T>(
+        uint depotId,
+        Server server,
+        Func<string, Task<T>> request
+    )
+    {
+        var key = (depotId, server.Host);
+        _cdnAuthTokens.TryGetValue(key, out var cached);
+        try
+        {
+            return await request(cached);
+        }
+        catch (SteamKitWebRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+        {
+            _cdnAuthTokens.TryRemove(key, out _);
+            var token = await GetCdnAuthToken(depotId, server);
+            if (token == null)
+                throw;
+            return await request(token);
+        }
     }
 
     private async Task<ulong> GetManifestRequestCodeAsync(
@@ -361,16 +564,30 @@ public class DepotDownloader : IDisposable
             branch
         );
         if (code == 0)
-            throw new Exception(
-                $"Failed to get manifest request code for depot {depotId}. "
-                    + "Ensure the account owns this app."
-            );
+            throw new ManifestRequestCodeRefusedException(depotId);
 
         _manifestRequestCodes[(depotId, manifestId)] = (code, DateTime.UtcNow.AddMinutes(5));
         return code;
     }
 
-    private async Task DownloadDepotAsync(
+    // Everything needed to download one depot, computed without touching game
+    // files: the manifest, the decryption key and the file diff.
+    private sealed class DepotPlan
+    {
+        public uint DepotId;
+        public ulong ManifestId;
+        public byte[] DepotKey;
+        public DepotManifest Manifest;
+        public List<DepotManifest.FileData> FilesToDownload;
+        public List<string> FilesToDelete;
+        public long AlreadyCompleteBytes;
+
+        // The installed manifest's entries by file name (empty on a fresh
+        // install), used to find reusable chunks in the installed file.
+        public Dictionary<string, DepotManifest.FileData> OldFiles;
+    }
+
+    private async Task<DepotPlan> PrepareDepotAsync(
         uint depotId,
         ulong manifestId,
         string branch,
@@ -380,94 +597,165 @@ public class DepotDownloader : IDisposable
         Log($"Processing depot {depotId}...");
 
         bool isUpdate = LoadCachedManifestId(depotId) != manifestId;
-
-        var depotKey = await GetDepotKeyAsync(depotId);
+        var depotKey = await GetDepotKeyAsync(depotId, ct);
 
         Log($"Downloading manifest for depot {depotId}...");
-        var manifest = await DownloadManifestAsync(depotId, manifestId, branch, depotKey);
+        var manifest = await DownloadManifestAsync(depotId, manifestId, branch, depotKey, ct);
 
         var oldManifest = LoadCachedManifest(depotId);
 
-        // Clean up temp files from interrupted previous downloads.
-        foreach (
-            var temp in Directory.GetFiles(_gameDir, "*.downloading", SearchOption.AllDirectories)
-        )
+        // New/changed files from the manifest diff, plus any existing file that
+        // fails on-disk SHA-1 verification.
+        SetPhase(DownloadPhase.Verifying);
+        var (filesToDownload, alreadyComplete) = GetFilesNeedingDownload(
+            oldManifest,
+            manifest,
+            isUpdate,
+            ct
+        );
+
+        return new DepotPlan
         {
-            try
-            {
-                File.Delete(temp);
-            }
-            catch { }
-        }
+            DepotId = depotId,
+            ManifestId = manifestId,
+            DepotKey = depotKey,
+            Manifest = manifest,
+            FilesToDownload = filesToDownload,
+            FilesToDelete = GetFilesToDelete(oldManifest, manifest),
+            AlreadyCompleteBytes = alreadyComplete,
+            OldFiles =
+                oldManifest?.Files.ToDictionary(f => f.FileName)
+                ?? new Dictionary<string, DepotManifest.FileData>(),
+        };
+    }
 
-        // Determine which files need downloading: new/changed files from the
-        // manifest diff, plus any existing files that fail on-disk SHA-1 verification.
-        var filesToDownload = GetFilesNeedingDownload(oldManifest, manifest, isUpdate);
-        var filesToDelete = GetFilesToDelete(oldManifest, manifest);
-
-        foreach (var fileName in filesToDelete)
+    private async Task DownloadDepotFilesAsync(DepotPlan plan, CancellationToken ct)
+    {
+        foreach (var fileName in plan.FilesToDelete)
         {
             var path = Path.Combine(_gameDir, fileName.Replace('\\', '/'));
             if (File.Exists(path))
             {
-                File.Delete(path);
+                Storage(fileName, () => File.Delete(path));
                 Log($"Deleted: {fileName}");
             }
         }
 
-        _progress.TotalFiles = filesToDownload.Count;
-        _progress.CompletedFiles = 0;
-        _progress.TotalBytes = filesToDownload.Sum(f => (long)f.TotalSize);
-        _progress.DownloadedBytes = 0;
-        ReportProgress();
-
-        if (filesToDownload.Count == 0)
+        if (plan.FilesToDownload.Count == 0)
         {
-            Log($"Depot {depotId}: already up to date");
+            Log($"Depot {plan.DepotId}: already up to date");
         }
         else
         {
+            long bytes = plan.FilesToDownload.Sum(f => (long)f.TotalSize);
             Log(
-                $"Downloading {filesToDownload.Count} files ({FormatSize(_progress.TotalBytes)}) with {MaxConcurrentDownloads} threads..."
+                $"Downloading {plan.FilesToDownload.Count} files ({FormatSize(bytes)}) with {MaxConcurrentDownloads} threads..."
             );
 
+            // The first unrecoverable error stops every worker. Without this,
+            // the remaining files would each burn through their full retry
+            // budget while the network is down before the attempt failed.
+            using var workers = CancellationTokenSource.CreateLinkedTokenSource(ct);
             using var semaphore = new SemaphoreSlim(MaxConcurrentDownloads);
             var tasks = new List<Task>();
+            Exception firstError = null;
 
-            foreach (var file in filesToDownload)
+            foreach (var file in plan.FilesToDownload)
             {
-                ct.ThrowIfCancellationRequested();
-                await semaphore.WaitAsync(ct);
+                try
+                {
+                    await semaphore.WaitAsync(workers.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
 
                 tasks.Add(
-                    Task.Run(
-                        async () =>
+                    Task.Run(async () =>
+                    {
+                        try
                         {
-                            try
-                            {
-                                await DownloadFileAsync(file, depotId, depotKey, ct);
-                                Interlocked.Increment(ref _progress.CompletedFiles);
-                                ReportProgress();
-                            }
-                            finally
-                            {
-                                semaphore.Release();
-                            }
-                        },
-                        ct
-                    )
+                            plan.OldFiles.TryGetValue(file.FileName, out var oldFile);
+                            await DownloadFileAsync(
+                                file,
+                                oldFile,
+                                plan.DepotId,
+                                plan.DepotKey,
+                                workers.Token
+                            );
+                            Interlocked.Increment(ref _progress.CompletedFiles);
+                            ReportProgress();
+                        }
+                        catch (OperationCanceledException) when (workers.IsCancellationRequested)
+                        {
+                            // Stopped because of another worker's error or the user.
+                        }
+                        catch (Exception ex)
+                        {
+                            Interlocked.CompareExchange(ref firstError, ex, null);
+                            workers.Cancel();
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    })
                 );
             }
 
             await Task.WhenAll(tasks);
+
+            // A user cancel wins over a worker error: a chunk still in flight
+            // when the user paused can fail with an ordinary network error,
+            // and that must not turn the pause into a failed download.
+            ct.ThrowIfCancellationRequested();
+            if (firstError != null)
+                ExceptionDispatchInfo.Capture(firstError).Throw();
         }
 
-        SaveManifest(depotId, manifest, manifestId);
-        Log($"Depot {depotId} complete");
+        Storage(
+            $"depot {plan.DepotId} manifest",
+            () => SaveManifest(plan.DepotId, plan.Manifest, plan.ManifestId)
+        );
+        Log($"Depot {plan.DepotId} complete");
     }
+
+    // Partial downloads live next to their target as "<file>.downloading" and
+    // are kept across attempts so a resume only fetches the chunks that are
+    // missing. Only temp files that no longer belong to anything we still need
+    // are removed (a file that was dropped from the manifest, or one that is
+    // already complete on disk).
+    private void DeleteOrphanedTempFiles(List<DepotPlan> plans)
+    {
+        var wanted = new HashSet<string>(
+            plans.SelectMany(p => p.FilesToDownload)
+                .Select(f => Path.GetFullPath(TempPathFor(f)))
+        );
+
+        foreach (
+            var temp in Directory.GetFiles(_gameDir, "*" + TempSuffix, SearchOption.AllDirectories)
+        )
+        {
+            if (wanted.Contains(Path.GetFullPath(temp)))
+                continue;
+            try
+            {
+                File.Delete(temp);
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not delete stale temp file {temp}: {ex.Message}");
+            }
+        }
+    }
+
+    private string TempPathFor(DepotManifest.FileData file) =>
+        Path.Combine(_gameDir, file.FileName.Replace('\\', '/')) + TempSuffix;
 
     private async Task DownloadFileAsync(
         DepotManifest.FileData file,
+        DepotManifest.FileData oldFile,
         uint depotId,
         byte[] depotKey,
         CancellationToken ct
@@ -488,44 +776,291 @@ public class DepotDownloader : IDisposable
         if (fileDir != null)
             Directory.CreateDirectory(fileDir);
 
-        // Validate existing file against manifest SHA-1 hash. A size-only check
-        // would miss corruption from interrupted writes (SetLength pre-allocates).
-        if (File.Exists(filePath) && VerifyFileHash(filePath, file))
-        {
-            Interlocked.Add(ref _progress.DownloadedBytes, (long)file.TotalSize);
-            ReportProgress();
-            return;
-        }
+        // Files reach this point only after PrepareDepotAsync found them missing
+        // or invalid, so there is no need to hash the target again here.
+        //
+        // Write into a temp file, verify, then move into place, so a partial
+        // file is never mistaken for a complete one. The temp file is kept
+        // across attempts: every chunk already in it is checked against its
+        // manifest SHA-1 and reused when it matches, so an interrupted 3 GB PCK
+        // resumes where it stopped instead of starting over.
+        var tempPath = filePath + TempSuffix;
+        bool resuming = File.Exists(tempPath);
+        long resumedHere = 0;
+        long reusedHere = 0;
 
-        // Write to a temp file, verify hash, then move into place. This prevents
-        // a partially-written file from being mistaken as complete on retry.
-        var tempPath = filePath + ".downloading";
+        var fs = Storage(
+            fileName,
+            () =>
+            {
+                var stream = new FileStream(
+                    tempPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None
+                );
+                try
+                {
+                    if (stream.Length != (long)file.TotalSize)
+                        stream.SetLength((long)file.TotalSize);
+                    return stream;
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
+            }
+        );
 
-        using (var fs = File.Create(tempPath))
+        // The installed file is opened only after the temp file succeeded, and
+        // inside the using chain, so a failure in either open can't leak the
+        // other handle. Both close before the verify and File.Move below.
+        LocalChunkSource local = default;
+        using (fs)
+        using ((local = OpenLocalChunkSource(filePath, oldFile)).Stream)
         {
+            long unflushed = 0;
             foreach (var chunk in file.Chunks.OrderBy(c => c.Offset))
             {
                 ct.ThrowIfCancellationRequested();
 
                 var buffer = new byte[chunk.UncompressedLength];
-                int written = await DownloadChunkAsync(depotId, chunk, buffer, depotKey, fileName);
 
-                fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
-                fs.Write(buffer, 0, written);
+                if (resuming && TryReadChunkAt(fs, (long)chunk.Offset, chunk, buffer))
+                {
+                    resumedHere += chunk.UncompressedLength;
+                    Interlocked.Add(ref _progress.DownloadedBytes, chunk.UncompressedLength);
+                    ReportProgress();
+                    continue;
+                }
+
+                if (TryReadLocalChunk(local, chunk, buffer))
+                {
+                    Storage(
+                        fileName,
+                        () =>
+                        {
+                            fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+                            fs.Write(buffer, 0, (int)chunk.UncompressedLength);
+                        }
+                    );
+                    reusedHere += chunk.UncompressedLength;
+                    unflushed += chunk.UncompressedLength;
+                    if (unflushed >= FlushIntervalBytes)
+                    {
+                        Storage(fileName, () => fs.Flush(flushToDisk: true));
+                        unflushed = 0;
+                    }
+                    Interlocked.Add(ref _progress.DownloadedBytes, chunk.UncompressedLength);
+                    ReportProgress();
+                    continue;
+                }
+
+                int written = await DownloadChunkAsync(
+                    depotId,
+                    chunk,
+                    buffer,
+                    depotKey,
+                    fileName,
+                    ct
+                );
+
+                // Push data to storage regularly so a process kill loses at most
+                // the last few chunks; anything torn is caught by the per-chunk
+                // check on the next resume.
+                unflushed += written;
+                bool flush = unflushed >= FlushIntervalBytes;
+                Storage(
+                    fileName,
+                    () =>
+                    {
+                        fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+                        fs.Write(buffer, 0, written);
+                        if (flush)
+                            fs.Flush(flushToDisk: true);
+                    }
+                );
+                if (flush)
+                    unflushed = 0;
 
                 Interlocked.Add(ref _progress.DownloadedBytes, written);
+                Interlocked.Add(ref _fetchedBytes, written);
                 ReportProgress();
             }
+
+            Storage(fileName, () => fs.Flush(flushToDisk: true));
         }
 
-        // Verify the completed file before committing it.
-        if (!VerifyFileHash(tempPath, file))
+        if (resumedHere > 0)
+        {
+            Interlocked.Add(ref _resumedBytes, resumedHere);
+            Log($"Resumed {FormatSize(resumedHere)} of {fileName} from partial download");
+        }
+        if (reusedHere > 0)
+        {
+            Interlocked.Add(ref _reusedBytes, reusedHere);
+            Log($"Reused {FormatSize(reusedHere)} of {fileName} from the installed version");
+        }
+
+        // Verify the completed file before committing it. A mismatch here is
+        // retried by the next download attempt from a clean temp file.
+        if (!VerifyFileHash(tempPath, file, ct))
         {
             File.Delete(tempPath);
-            throw new Exception($"SHA-1 verification failed for {fileName} after download");
+            throw new DownloadTransientException(
+                $"SHA-1 verification failed for {fileName} after download"
+            );
         }
 
-        File.Move(tempPath, filePath, overwrite: true);
+        Storage(fileName, () => File.Move(tempPath, filePath, overwrite: true));
+        RememberVerified(filePath, file);
+    }
+
+    // Disk writes are fatal on failure (usually a full disk): retrying a
+    // download can't fix them, and treating them like network errors would
+    // just wait for 20 minutes before reporting the real problem.
+    private static void Storage(string fileName, Action action) =>
+        Storage(
+            fileName,
+            () =>
+            {
+                action();
+                return true;
+            }
+        );
+
+    private static T Storage<T>(string fileName, Func<T> action)
+    {
+        try
+        {
+            return action();
+        }
+        catch (IOException ex)
+        {
+            throw new DownloadFatalException(
+                Loc.Tr(
+                    $"{fileName} 저장 실패: {ex.Message}. 저장 공간을 확인한 뒤 다시 시도하세요.",
+                    $"Couldn't save {fileName}: {ex.Message}. Check free storage, then try again."
+                ),
+                ex
+            );
+        }
+        // Permission denied (for example a data dir the app can no longer
+        // write to). Not an IOException, and retrying can't fix it either.
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new DownloadFatalException(
+                Loc.Tr(
+                    $"{fileName} 저장 실패: {ex.Message}. 앱의 저장소 쓰기 권한을 확인한 뒤 다시 시도하세요.",
+                    $"Couldn't save {fileName}: {ex.Message}. Check that the app can write to its storage, then try again."
+                ),
+                ex
+            );
+        }
+    }
+
+    private const string PendingMarkerLabel = "download_state/pending.json";
+
+    // Reads `chunk.UncompressedLength` bytes at `offset` and checks them
+    // against the chunk's manifest SHA-1. Chunks without a ChunkID can't be
+    // proven correct, so they are always downloaded again.
+    private static bool TryReadChunkAt(
+        FileStream fs,
+        long offset,
+        DepotManifest.ChunkData chunk,
+        byte[] buffer
+    )
+    {
+        if (chunk.ChunkID == null || chunk.ChunkID.Length == 0)
+            return false;
+        if (offset < 0 || offset + chunk.UncompressedLength > fs.Length)
+            return false;
+
+        try
+        {
+            fs.Seek(offset, SeekOrigin.Begin);
+            fs.ReadExactly(buffer, 0, (int)chunk.UncompressedLength);
+        }
+        catch (EndOfStreamException)
+        {
+            return false;
+        }
+
+        return VerifyChunkHash(buffer, (int)chunk.UncompressedLength, chunk);
+    }
+
+    // The installed copy of a file being replaced, plus where each of its
+    // chunks lives according to the installed manifest.
+    private readonly struct LocalChunkSource
+    {
+        public readonly FileStream Stream;
+        public readonly Dictionary<string, ulong> OldOffsets;
+
+        public LocalChunkSource(FileStream stream, Dictionary<string, ulong> oldOffsets)
+        {
+            Stream = stream;
+            OldOffsets = oldOffsets;
+        }
+    }
+
+    private LocalChunkSource OpenLocalChunkSource(string filePath, DepotManifest.FileData oldFile)
+    {
+        if (!ReuseLocalChunks || !File.Exists(filePath))
+            return default;
+
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log($"Can't read installed {Path.GetFileName(filePath)} for chunk reuse: {ex.Message}");
+            return default;
+        }
+
+        Dictionary<string, ulong> offsets = null;
+        if (oldFile != null)
+        {
+            offsets = new Dictionary<string, ulong>();
+            foreach (var c in oldFile.Chunks)
+            {
+                if (c.ChunkID != null && c.ChunkID.Length > 0)
+                    offsets.TryAdd(Convert.ToHexString(c.ChunkID), c.Offset);
+            }
+        }
+        return new LocalChunkSource(stream, offsets);
+    }
+
+    // Looks for the chunk in the installed file: first where the installed
+    // manifest says that chunk is (content that moved), then at the chunk's
+    // new offset (content that stayed put, or no installed manifest).
+    private static bool TryReadLocalChunk(
+        LocalChunkSource local,
+        DepotManifest.ChunkData chunk,
+        byte[] buffer
+    )
+    {
+        if (local.Stream == null || chunk.ChunkID == null || chunk.ChunkID.Length == 0)
+            return false;
+
+        try
+        {
+            if (
+                local.OldOffsets != null
+                && local.OldOffsets.TryGetValue(Convert.ToHexString(chunk.ChunkID), out var oldOffset)
+                && TryReadChunkAt(local.Stream, (long)oldOffset, chunk, buffer)
+            )
+                return true;
+
+            return TryReadChunkAt(local.Stream, (long)chunk.Offset, chunk, buffer);
+        }
+        catch (IOException)
+        {
+            // Reuse is an optimization; a read error just means download it.
+            return false;
+        }
     }
 
     // Computes SHA-1 of a decompressed chunk and compares it to the manifest ChunkID.
@@ -539,80 +1074,194 @@ public class DepotDownloader : IDisposable
     }
 
     // Computes SHA-1 of a file on disk and compares it to the manifest hash.
-    private static bool VerifyFileHash(string path, DepotManifest.FileData file)
+    private static bool VerifyFileHash(
+        string path,
+        DepotManifest.FileData file,
+        CancellationToken ct = default
+    ) =>
+        ComputeFileSha1(path, (long)file.TotalSize, ct) is byte[] hash
+        && hash.AsSpan().SequenceEqual(file.FileHash);
+
+    private const int HashBlockBytes = 1024 * 1024;
+
+    // SHA-1 of a file, or null when it is missing, unreadable or not the
+    // expected length (a size mismatch is decided without reading the file).
+    // Hashes block by block so a pause can stop it partway through the PCK;
+    // cancellation is rethrown, never reported as "unreadable".
+    private static byte[] ComputeFileSha1(
+        string path,
+        long expectedLength,
+        CancellationToken ct = default
+    )
     {
+        byte[] block = null;
         try
         {
             var info = new FileInfo(path);
-            if (info.Length != (long)file.TotalSize)
-                return false;
+            if (!info.Exists || info.Length != expectedLength)
+                return null;
 
             using var fs = File.OpenRead(path);
-            var hash = System.Security.Cryptography.SHA1.HashData(fs);
-            return hash.AsSpan().SequenceEqual(file.FileHash);
+            using var sha1 = System.Security.Cryptography.IncrementalHash.CreateHash(
+                System.Security.Cryptography.HashAlgorithmName.SHA1
+            );
+            block = System.Buffers.ArrayPool<byte>.Shared.Rent(HashBlockBytes);
+            int read;
+            while ((read = fs.Read(block, 0, HashBlockBytes)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                sha1.AppendData(block, 0, read);
+            }
+            return sha1.GetHashAndReset();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {
-            return false;
+            return null;
+        }
+        finally
+        {
+            if (block != null)
+                System.Buffers.ArrayPool<byte>.Shared.Return(block);
         }
     }
 
-    // Builds the list of files that need downloading. For manifest changes, uses
-    // the hash diff. For all files in the target manifest, verifies the on-disk
-    // copy against the expected SHA-1 — catching corruption from interrupted
-    // writes, disk errors, or missing files.
-    private List<DepotManifest.FileData> GetFilesNeedingDownload(
+    // True when the file on disk is the manifest's version of it. Both
+    // outcomes are cached per instance by (length, mtime, expected hash) so a
+    // retry of the same download doesn't hash the whole install again;
+    // `fromCache` says whether this answer came from that cache. The PCK also
+    // counts as valid when it is our own Sentry-patched copy of exactly this
+    // manifest version.
+    private bool IsFileValid(
+        string path,
+        DepotManifest.FileData file,
+        CancellationToken ct,
+        out bool fromCache
+    )
+    {
+        fromCache = false;
+        var info = new FileInfo(path);
+        if (!info.Exists || info.Length != (long)file.TotalSize)
+            return false;
+
+        var stamp = (
+            Length: info.Length,
+            WriteTimeUtc: info.LastWriteTimeUtc,
+            Sha1Hex: Convert.ToHexString(file.FileHash)
+        );
+        if (_verifiedFiles.TryGetValue(path, out var seen) && seen == stamp)
+        {
+            fromCache = true;
+            return true;
+        }
+        if (_failedFiles.TryGetValue(path, out var failed) && failed == stamp)
+        {
+            fromCache = true;
+            return false;
+        }
+
+        var actual = ComputeFileSha1(path, (long)file.TotalSize, ct);
+        // Unreadable (or changed size under us): not cached, so the next pass
+        // looks at the file again.
+        if (actual == null)
+            return false;
+
+        var actualHex = Convert.ToHexString(actual);
+        bool valid = actualHex == stamp.Sha1Hex || IsOurPatchedPck(file, actualHex);
+        if (valid)
+        {
+            _verifiedFiles[path] = stamp;
+            _failedFiles.TryRemove(path, out _);
+        }
+        else
+        {
+            _failedFiles[path] = stamp;
+        }
+        return valid;
+    }
+
+    private void RememberVerified(string path, DepotManifest.FileData file)
+    {
+        var info = new FileInfo(path);
+        _verifiedFiles[path] = (
+            info.Length,
+            info.LastWriteTimeUtc,
+            Convert.ToHexString(file.FileHash)
+        );
+        _failedFiles.TryRemove(path, out _);
+    }
+
+    // Builds the list of files that need downloading and the byte count of
+    // files that belong to this update but are already correct on disk (left
+    // there by an earlier, interrupted attempt). Every file in the target
+    // manifest is checked against its SHA-1, which also catches corruption
+    // from disk errors or missing files.
+    private (List<DepotManifest.FileData> Files, long AlreadyCompleteBytes) GetFilesNeedingDownload(
         DepotManifest oldManifest,
         DepotManifest newManifest,
-        bool isUpdate
+        bool isUpdate,
+        CancellationToken ct
     )
     {
         var oldFiles = oldManifest?.Files.ToDictionary(f => f.FileName);
         var result = new List<DepotManifest.FileData>();
+        long alreadyComplete = 0;
         int verified = 0;
         int corrupt = 0;
+        int cached = 0;
 
         foreach (var file in newManifest.Files)
         {
+            // Hashing the install can take a while; let a pause stop it.
+            ct.ThrowIfCancellationRequested();
             if (file.Flags.HasFlag(EDepotFileFlag.Directory))
                 continue;
 
-            // Manifest changed for this file — always re-download.
-            if (isUpdate && oldFiles != null)
-            {
-                if (
-                    !oldFiles.TryGetValue(file.FileName, out var oldFile)
-                    || !file.FileHash.SequenceEqual(oldFile.FileHash)
-                )
-                {
-                    result.Add(file);
-                    continue;
-                }
-            }
+            // "Part of this update" = new or changed versus the installed
+            // manifest, or everything on a fresh install. Those files count
+            // toward the progress total even when an earlier attempt already
+            // finished them.
+            bool partOfUpdate =
+                oldFiles == null
+                || (
+                    isUpdate
+                    && (
+                        !oldFiles.TryGetValue(file.FileName, out var oldFile)
+                        || !file.FileHash.SequenceEqual(oldFile.FileHash)
+                    )
+                );
 
-            // Verify on-disk file matches the manifest hash.
             var filePath = Path.Combine(_gameDir, file.FileName.Replace('\\', '/'));
-            if (VerifyFileHash(filePath, file))
+            bool valid = IsFileValid(filePath, file, ct, out bool fromCache);
+            if (fromCache)
+                cached++;
+            if (valid)
             {
                 verified++;
+                if (partOfUpdate)
+                    alreadyComplete += (long)file.TotalSize;
+                continue;
             }
-            else
+
+            if (!partOfUpdate && File.Exists(filePath))
             {
-                if (File.Exists(filePath))
-                {
-                    corrupt++;
-                    Log($"File needs re-download (hash mismatch): {file.FileName}");
-                }
-                result.Add(file);
+                corrupt++;
+                Log($"File needs re-download (hash mismatch): {file.FileName}");
             }
+            result.Add(file);
         }
 
         if (verified > 0)
             Log($"Verified {verified} existing files");
         if (corrupt > 0)
             Log($"Found {corrupt} corrupt files requiring re-download");
+        if (cached > 0)
+            Log($"Reused {cached} hash results from an earlier attempt");
 
-        return result;
+        return (result, alreadyComplete);
     }
 
     private static List<string> GetFilesToDelete(
@@ -683,7 +1332,10 @@ public class DepotDownloader : IDisposable
         _connection.SuspendIdleTimeout();
         try
         {
-            var appInfo = await FetchAppInfoAsync();
+            var appInfo = await _steamPipeline.ExecuteAsync(
+                async _ => await FetchAppInfoAsync(),
+                ct
+            );
             var depotSection = appInfo.KeyValues["depots"];
             var cache = LoadVersionCache();
 
@@ -695,7 +1347,10 @@ public class DepotDownloader : IDisposable
                 {
                     version = await ProbeBranchVersionAsync(depotSection, branch, cache, ct);
                 }
-                catch (OperationCanceledException)
+                // Only the caller's cancel ends the probe. A request timeout
+                // that outlasted its retries surfaces as an
+                // OperationCanceledException too; that stays a per-branch failure.
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
                     throw;
                 }
@@ -747,8 +1402,8 @@ public class DepotDownloader : IDisposable
         foreach (var (depotId, manifestId) in depots)
         {
             ct.ThrowIfCancellationRequested();
-            var depotKey = await GetDepotKeyAsync(depotId);
-            var manifest = await DownloadManifestAsync(depotId, manifestId, branch, depotKey);
+            var depotKey = await GetDepotKeyAsync(depotId, ct);
+            var manifest = await DownloadManifestAsync(depotId, manifestId, branch, depotKey, ct);
             var file = manifest.Files?.FirstOrDefault(f =>
                 string.Equals(
                     f.FileName.Replace('\\', '/'),
@@ -771,7 +1426,8 @@ public class DepotDownloader : IDisposable
                     chunk,
                     buffer,
                     depotKey,
-                    ReleaseInfoFileName
+                    ReleaseInfoFileName,
+                    ct
                 );
                 Array.Copy(buffer, 0, bytes, (long)chunk.Offset, written);
             }
@@ -844,12 +1500,19 @@ public class DepotDownloader : IDisposable
             return;
 
         Log("Getting CDN servers...");
-        var allServers = await ContentServerDirectoryService.LoadAsync(
-            _connection.Configuration,
+        var allServers = await _steamPipeline.ExecuteAsync(
+            async token =>
+            {
+                var list = await ContentServerDirectoryService.LoadAsync(
+                    _connection.Configuration,
+                    token
+                );
+                if (list == null || list.Count == 0)
+                    throw new DownloadTransientException("No CDN servers available");
+                return list;
+            },
             ct
         );
-        if (allServers == null || allServers.Count == 0)
-            throw new Exception("No CDN servers available");
 
         var servers = allServers
             .Where(s => s.Type == "SteamCache" || s.Type == "CDN")
@@ -862,128 +1525,246 @@ public class DepotDownloader : IDisposable
         Log($"Using {_servers.Count} CDN servers");
     }
 
-    private async Task<byte[]> GetDepotKeyAsync(uint depotId)
+    private Task<byte[]> GetDepotKeyAsync(uint depotId, CancellationToken ct)
     {
         if (_depotKeys.TryGetValue(depotId, out var cached))
-            return cached;
+            return Task.FromResult(cached);
 
-        var keyResult = await _connection.Apps.GetDepotDecryptionKey(depotId, AppId);
-        if (keyResult.Result != EResult.OK)
-            throw new Exception($"Failed to get depot key for {depotId}: {keyResult.Result}");
-        _depotKeys[depotId] = keyResult.DepotKey;
-        return keyResult.DepotKey;
+        return _steamPipeline
+            .ExecuteAsync(
+                async _ =>
+                {
+                    var result = await _connection.Apps.GetDepotDecryptionKey(depotId, AppId);
+                    if (result.Result == EResult.OK)
+                    {
+                        _depotKeys[depotId] = result.DepotKey;
+                        return result.DepotKey;
+                    }
+
+                    var message = $"Failed to get depot key for {depotId}: {result.Result}";
+                    if (result.Result is EResult.AccessDenied or EResult.Blocked)
+                        throw new DownloadFatalException(message);
+                    throw new DownloadTransientException(message);
+                },
+                ct
+            )
+            .AsTask();
+    }
+
+    // SteamKit2 returns request code 0 for any non-OK answer, so a refusal
+    // (the account may not fetch this manifest) looks the same as a brief
+    // Steam-side error. The Steam pipeline retries it a few times; if Steam
+    // still refuses, DownloadManifestAsync turns it into a fatal error so the
+    // launcher doesn't wait ~19 minutes for a network problem that isn't one.
+    private sealed class ManifestRequestCodeRefusedException : DownloadTransientException
+    {
+        public readonly uint DepotId;
+
+        public ManifestRequestCodeRefusedException(uint depotId)
+            : base($"Steam returned no manifest request code for depot {depotId}")
+        {
+            DepotId = depotId;
+        }
     }
 
     private async Task<DepotManifest> DownloadManifestAsync(
         uint depotId,
         ulong manifestId,
         string branch,
-        byte[] depotKey
+        byte[] depotKey,
+        CancellationToken ct
     )
     {
-        var manifestRequestCode = await GetManifestRequestCodeAsync(depotId, manifestId, branch);
-
-        DepotManifest manifest = null;
-        for (int attempt = 0; attempt < MaxRetries && manifest == null; attempt++)
+        try
         {
-            var server = GetNextServer();
-            try
-            {
-                manifest = await _cdnClient.DownloadManifestAsync(
-                    depotId,
-                    manifestId,
-                    manifestRequestCode,
-                    server,
-                    depotKey
-                );
-            }
-            catch (SteamKitWebRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
-            {
-                var token = await GetCdnAuthToken(depotId, server);
-                if (token != null)
-                {
-                    manifest = await _cdnClient.DownloadManifestAsync(
-                        depotId,
-                        manifestId,
-                        manifestRequestCode,
-                        server,
-                        depotKey,
-                        cdnAuthToken: token
-                    );
-                }
-            }
-            catch (Exception ex) when (attempt < MaxRetries - 1)
-            {
-                Log($"Manifest download failed (attempt {attempt + 1}): {ex.Message}");
-            }
+            return await DownloadManifestCoreAsync(depotId, manifestId, branch, depotKey, ct);
         }
-
-        if (manifest == null)
-            throw new Exception(
-                $"Failed to download manifest for depot {depotId} after {MaxRetries} attempts"
+        catch (ManifestRequestCodeRefusedException ex)
+        {
+            throw new DownloadFatalException(
+                Loc.Tr(
+                    $"Steam이 디포 {ex.DepotId}의 매니페스트 요청을 거부했습니다. 이 계정이 게임을 소유하고 있고 선택한 브랜치에 접근할 수 있는지 확인하세요.",
+                    $"Steam refused the manifest request for depot {ex.DepotId}. Check that this account owns the game and can access the selected branch."
+                ),
+                ex
             );
-        return manifest;
+        }
     }
 
-    // Downloads one chunk into buffer with server rotation, CDN-token retry on
-    // 403 and SHA-1 verification. Returns the number of bytes written.
-    private async Task<int> DownloadChunkAsync(
+    private async Task<DepotManifest> DownloadManifestCoreAsync(
+        uint depotId,
+        ulong manifestId,
+        string branch,
+        byte[] depotKey,
+        CancellationToken ct
+    )
+    {
+        await _steamPipeline.ExecuteAsync(
+            async _ => await GetManifestRequestCodeAsync(depotId, manifestId, branch),
+            ct
+        );
+
+        return await _cdnPipeline.ExecuteAsync(
+            async _ =>
+            {
+                // Cached; only goes back to Steam if the code expired during a
+                // long retry sequence.
+                var requestCode = await GetManifestRequestCodeAsync(depotId, manifestId, branch);
+                var server = GetNextServer();
+                return await WithCdnAuthAsync(
+                    depotId,
+                    server,
+                    authToken =>
+                        _cdnClient.DownloadManifestAsync(
+                            depotId,
+                            manifestId,
+                            requestCode,
+                            server,
+                            depotKey,
+                            cdnAuthToken: authToken
+                        )
+                );
+            },
+            ct
+        );
+    }
+
+    // Downloads one chunk into buffer through the CDN retry pipeline: each
+    // attempt uses the next server, refreshes the CDN auth token on 403 and
+    // verifies the chunk SHA-1. Returns the number of bytes written.
+    private Task<int> DownloadChunkAsync(
         uint depotId,
         DepotManifest.ChunkData chunk,
         byte[] buffer,
         byte[] depotKey,
-        string fileName
-    )
+        string fileName,
+        CancellationToken ct
+    ) =>
+        _cdnPipeline
+            .ExecuteAsync(
+                async _ =>
+                {
+                    var server = GetNextServer();
+                    int written = await WithCdnAuthAsync(
+                        depotId,
+                        server,
+                        authToken =>
+                            _cdnClient.DownloadDepotChunkAsync(
+                                depotId,
+                                chunk,
+                                server,
+                                buffer,
+                                depotKey,
+                                cdnAuthToken: authToken
+                            )
+                    );
+
+                    if (!VerifyChunkHash(buffer, written, chunk))
+                        throw new ChunkHashMismatchException(
+                            $"Chunk SHA-1 mismatch for {fileName} at offset {chunk.Offset} ({server.Host})"
+                        );
+                    return written;
+                },
+                ct
+            )
+            .AsTask();
+
+    // PatchGamePck edits the PCK in place, so its SHA-1 stops matching the
+    // manifest. We record which manifest version was patched and the resulting
+    // hash; IsFileValid then accepts that exact file instead of treating it as
+    // corrupt and re-downloading ~3 GB on every later verification pass.
+    private sealed class PckPatchRecord
     {
-        for (int attempt = 0; attempt < MaxRetries; attempt++)
+        public string ManifestSha1 { get; set; }
+        public string PatchedSha1 { get; set; }
+    }
+
+    private string PckPatchRecordPath => Path.Combine(_stateDir, "pck_patch.json");
+
+    private void RecordPatchedPck(string pckPath, List<DepotPlan> plans)
+    {
+        var pckFile = plans
+            .SelectMany(p => p.Manifest.Files)
+            .FirstOrDefault(f => f.FileName.Replace('\\', '/') == PckFileName);
+        if (pckFile == null)
+            return;
+
+        var patched = ComputeFileSha1(pckPath, (long)pckFile.TotalSize);
+        if (patched == null)
+            return;
+
+        try
         {
-            var server = GetNextServer();
-            int written;
+            var record = new PckPatchRecord
+            {
+                ManifestSha1 = Convert.ToHexString(pckFile.FileHash),
+                PatchedSha1 = Convert.ToHexString(patched),
+            };
+            File.WriteAllText(
+                PckPatchRecordPath,
+                System.Text.Json.JsonSerializer.Serialize(record)
+            );
+            RememberVerified(pckPath, pckFile);
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to record patched PCK hash: {ex.Message}");
+        }
+    }
+
+    private bool IsOurPatchedPck(DepotManifest.FileData file, string actualSha1Hex)
+    {
+        if (file.FileName.Replace('\\', '/') != PckFileName)
+            return false;
+
+        try
+        {
+            if (!File.Exists(PckPatchRecordPath))
+                return false;
+            var record = System.Text.Json.JsonSerializer.Deserialize<PckPatchRecord>(
+                File.ReadAllText(PckPatchRecordPath)
+            );
+            return record != null
+                && record.ManifestSha1 == Convert.ToHexString(file.FileHash)
+                && record.PatchedSha1 == actualSha1Hex;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void WritePendingMarker(bool force = false)
+    {
+        var pending = _pending;
+        if (pending == null)
+            return;
+
+        lock (_pendingLock)
+        {
+            var now = DateTime.UtcNow;
+            if (!force && now - pending.LastProgressUtc < PendingWriteInterval)
+                return;
+
+            pending.TotalBytes = Interlocked.Read(ref _progress.TotalBytes);
+            pending.DownloadedBytes = Interlocked.Read(ref _progress.DownloadedBytes);
+            pending.LastProgressUtc = now;
             try
             {
-                written = await _cdnClient.DownloadDepotChunkAsync(
-                    depotId,
-                    chunk,
-                    server,
-                    buffer,
-                    depotKey
-                );
+                pending.Write(_stateDir);
             }
-            catch (SteamKitWebRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+            catch (Exception ex)
             {
-                var token = await GetCdnAuthToken(depotId, server);
-                if (token == null)
-                    continue;
-                written = await _cdnClient.DownloadDepotChunkAsync(
-                    depotId,
-                    chunk,
-                    server,
-                    buffer,
-                    depotKey,
-                    cdnAuthToken: token
-                );
+                Log($"Failed to update pending marker: {ex.Message}");
+                // The forced write is the one right before the first file
+                // change. Without a marker on disk an interrupted update would
+                // look complete, so stop before touching game files. Throttled
+                // progress updates only refresh the percentage of a marker
+                // that already exists, so they keep going.
+                if (force)
+                    throw;
             }
-            catch (Exception ex) when (attempt < MaxRetries - 1)
-            {
-                Log($"Chunk download failed (attempt {attempt + 1}): {ex.Message}");
-                continue;
-            }
-
-            if (VerifyChunkHash(buffer, written, chunk))
-                return written;
-            if (attempt == MaxRetries - 1)
-                throw new Exception(
-                    $"Chunk SHA-1 verification failed for {fileName} "
-                        + $"at offset {chunk.Offset} after {MaxRetries} attempts"
-                );
-            Log($"Chunk SHA-1 mismatch at offset {chunk.Offset}, retrying...");
         }
-
-        if (chunk.UncompressedLength > 0)
-            throw new Exception(
-                $"Failed to download chunk for {fileName} after {MaxRetries} attempts"
-            );
-        return 0;
     }
 
     private void Log(string msg)
@@ -992,9 +1773,22 @@ public class DepotDownloader : IDisposable
         LogMessage?.Invoke(msg);
     }
 
-    private void ReportProgress()
+    private void SetPhase(DownloadPhase phase)
     {
-        ProgressChanged?.Invoke(_progress);
+        _progress.Phase = phase;
+        ReportProgress(force: true);
+    }
+
+    private void ReportProgress(bool force = false)
+    {
+        long now = Environment.TickCount64;
+        long last = Interlocked.Read(ref _lastProgressTick);
+        if (force || now - last >= ProgressIntervalMs)
+        {
+            Interlocked.Exchange(ref _lastProgressTick, now);
+            ProgressChanged?.Invoke(_progress);
+        }
+        WritePendingMarker();
     }
 
     private static string FormatSize(long bytes)
@@ -1009,11 +1803,13 @@ public class DepotDownloader : IDisposable
     }
 
     // Patches the PCK in-place to disable the Sentry autoload and GDExtension
-    // entries (no android.arm64 build exists for the Sentry plugin).
-    public static void PatchGamePck(string pckPath)
+    // entries (no android.arm64 build exists for the Sentry plugin). Returns
+    // true when this call changed the file (false if it was already patched,
+    // missing, or patching failed).
+    public static bool PatchGamePck(string pckPath)
     {
         if (!File.Exists(pckPath))
-            return;
+            return false;
 
         try
         {
@@ -1022,7 +1818,7 @@ public class DepotDownloader : IDisposable
 
             uint magic = reader.ReadUInt32();
             if (magic != 0x43504447) // "GDPC"
-                return;
+                return false;
 
             uint formatVersion = reader.ReadUInt32();
             reader.ReadUInt32(); // major
@@ -1059,10 +1855,12 @@ public class DepotDownloader : IDisposable
 
             if (patched)
                 PatchHelper.Log("Patched game PCK: removed Sentry plugin references");
+            return patched;
         }
         catch (Exception ex)
         {
             PatchHelper.Log($"PCK patching failed (non-fatal): {ex.Message}");
+            return false;
         }
     }
 
