@@ -5,6 +5,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using SteamKit2;
+using SteamKit2.Authentication;
+using STS2Mobile.Launcher.Components;
 using STS2Mobile.Patches;
 using STS2Mobile.Steam;
 
@@ -21,6 +24,7 @@ public class LauncherModel : IDisposable
 
     private SteamConnection _connection;
     private SteamAuth _auth;
+    private CancellationTokenSource _qrCts;
     private DepotDownloader _downloader;
     private CancellationTokenSource _downloadCts;
     private TaskCompletionSource<bool> _launchTcs;
@@ -76,6 +80,9 @@ public class LauncherModel : IDisposable
     public event Action<SessionState> SessionStateChanged;
     public event Action<string> LogReceived;
     public event Action<bool> CodeNeeded;
+    public event Action<string> QrChallengeChanged;
+    public event Action<string> QrLoginFailed;
+    public event Action DeviceConfirmationNeeded;
     public event Action<DownloadProgress> DownloadProgressChanged;
     public event Action<string> DownloadLogReceived;
     public event Action DownloadCompleted;
@@ -175,16 +182,18 @@ public class LauncherModel : IDisposable
         }
     }
 
-    // Performs interactive login via SteamAuth, saves credentials on success,
-    // then verifies ownership.
+    // Performs interactive password login via SteamAuth, saves credentials on
+    // success, then verifies ownership. The single-phone route (approve with a
+    // tap in the Steam app, or a Steam Guard code); LoginWithQrAsync is the
+    // default when a second device can scan the QR code.
     public async Task LoginAsync(string username, string password)
     {
+        CancelQrLogin();
         SetState(SessionState.Authenticating);
 
         try
         {
-            _auth = new SteamAuth();
-            _auth.LogMessage += msg => LogReceived?.Invoke(msg);
+            _auth = CreateAuth();
             _auth.CodeProvider = async (wasIncorrect) =>
             {
                 AwaitingCode = true;
@@ -206,21 +215,7 @@ public class LauncherModel : IDisposable
                 _credentialStore.GuardData
             );
 
-            _credentialStore.Save(result.AccountName, result.RefreshToken, result.GuardData);
-            LauncherPatches.SavedAccountName = result.AccountName;
-            LauncherPatches.SavedRefreshToken = result.RefreshToken;
-
-            _auth.Dispose();
-            _auth = null;
-
-            _connection = new SteamConnection(result.AccountName, result.RefreshToken);
-            await VerifyOwnershipAsync();
-            // issue #59 — a fresh interactive login just issued a brand-new
-            // refresh token: both expiry signals reset so the auth gates
-            // (BlockIfTokenExpired) reopen immediately without a restart.
-            SavedTokenExpired = false;
-            SavedTokenExpiringSoon = false;
-            _ = MaybeRenewRefreshTokenAsync();
+            await CompleteLoginAsync(result);
         }
         catch (Exception ex)
         {
@@ -229,6 +224,143 @@ public class LauncherModel : IDisposable
             _auth?.Dispose();
             _auth = null;
         }
+    }
+
+    // QR sign-in: the launcher never sees a password. Raises
+    // QrChallengeChanged with the URL to render as a QR code, and
+    // QrLoginFailed (with a user-facing reason) when the request is denied,
+    // expires, or can't reach Steam; the UI then offers a fresh code. Session
+    // state stays put while waiting so the sign-in screen remains visible;
+    // it moves to Authenticating only once the request is approved.
+    public async Task LoginWithQrAsync()
+    {
+        CancelQrLogin();
+        var cts = new CancellationTokenSource();
+        _qrCts = cts;
+        var auth = CreateAuth();
+        _auth = auth;
+        AuthResult result = null;
+
+        try
+        {
+            result = await auth.LoginWithQrAsync(
+                _credentialStore.GuardData,
+                url =>
+                {
+                    if (!cts.IsCancellationRequested)
+                        QrChallengeChanged?.Invoke(url);
+                },
+                cts.Token
+            );
+        }
+        catch (Exception ex)
+        {
+            auth.Dispose();
+            if (ReferenceEquals(_auth, auth))
+                _auth = null;
+            // Cancelled = superseded (password form, Retry, a fresh code):
+            // nothing to report.
+            if (!cts.IsCancellationRequested)
+            {
+                PatchHelper.Log($"[Launcher] QR sign-in failed: {ex.Message}");
+                QrLoginFailed?.Invoke(DescribeQrFailure(ex));
+            }
+            return;
+        }
+        finally
+        {
+            if (ReferenceEquals(_qrCts, cts))
+                _qrCts = null;
+            cts.Dispose();
+        }
+
+        // Superseded at the very moment Steam approved (the user had already
+        // switched to the password form or asked for a new code): drop this
+        // result rather than racing the flow that replaced it over _auth.
+        if (!ReferenceEquals(_auth, auth))
+        {
+            auth.Dispose();
+            return;
+        }
+
+        // Approved. Same post-login handling as the password path.
+        SetState(SessionState.Authenticating);
+        try
+        {
+            await CompleteLoginAsync(result);
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Launcher] Login failed: {ex.Message}");
+            SetState(SessionState.Failed, ex.Message);
+            _auth?.Dispose();
+            _auth = null;
+        }
+    }
+
+    // True while a QR sign-in is waiting for approval.
+    public bool QrLoginPending => _qrCts != null;
+
+    // Stops a pending QR sign-in, if any. Safe to call at any time.
+    public void CancelQrLogin()
+    {
+        var cts = _qrCts;
+        _qrCts = null;
+        if (cts == null)
+            return;
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private static string DescribeQrFailure(Exception ex) =>
+        ex switch
+        {
+            AuthenticationException { Result: EResult.FileNotFound } => Loc.Tr(
+                "로그인 요청이 거부되었거나 더 이상 유효하지 않습니다.",
+                "The sign-in request was denied or is no longer valid."
+            ),
+            AuthenticationException { Result: EResult.Expired } => Loc.Tr(
+                "로그인 코드가 만료되었습니다.",
+                "The sign-in code expired."
+            ),
+            TimeoutException => Loc.Tr(
+                "Steam에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.",
+                "Could not connect to Steam. Check your internet connection."
+            ),
+            _ => Loc.Tr("QR 로그인에 실패했습니다.", "QR sign-in failed."),
+        };
+
+    private SteamAuth CreateAuth()
+    {
+        var auth = new SteamAuth();
+        auth.LogMessage += msg => LogReceived?.Invoke(msg);
+        auth.DeviceConfirmationRequested += () => DeviceConfirmationNeeded?.Invoke();
+        return auth;
+    }
+
+    // Shared success tail of both login paths: persist the new token, publish
+    // it to the in-game cloud patches, then verify ownership on a fresh
+    // SteamConnection.
+    private async Task CompleteLoginAsync(AuthResult result)
+    {
+        _credentialStore.Save(result.AccountName, result.RefreshToken, result.GuardData);
+        LauncherPatches.SavedAccountName = result.AccountName;
+        LauncherPatches.SavedRefreshToken = result.RefreshToken;
+
+        _auth?.Dispose();
+        _auth = null;
+
+        _connection = new SteamConnection(result.AccountName, result.RefreshToken);
+        await VerifyOwnershipAsync();
+        // issue #59 — a fresh interactive login just issued a brand-new
+        // refresh token: both expiry signals reset so the auth gates
+        // (BlockIfTokenExpired) reopen immediately without a restart.
+        SavedTokenExpired = false;
+        SavedTokenExpiringSoon = false;
+        _ = MaybeRenewRefreshTokenAsync();
     }
 
     // issue #59 — opportunistic rolling refresh-token renewal, fired
@@ -426,6 +558,7 @@ public class LauncherModel : IDisposable
 
     public FastPathResult Retry()
     {
+        CancelQrLogin();
         _downloadCts?.Cancel();
         _downloader?.Dispose();
         _connection?.Dispose();
@@ -456,6 +589,7 @@ public class LauncherModel : IDisposable
 
     public void Dispose()
     {
+        CancelQrLogin();
         _downloadCts?.Cancel();
         _downloader?.Dispose();
         _auth?.Dispose();

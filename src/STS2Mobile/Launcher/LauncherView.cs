@@ -12,6 +12,7 @@ namespace STS2Mobile.Launcher;
 public class LauncherView
 {
     public LoginSection Login { get; }
+    public QrLoginSection QrLogin { get; }
     public CodeSection Code { get; }
     public DownloadSection Download { get; }
     public ActionSection Actions { get; }
@@ -148,6 +149,9 @@ public class LauncherView
         _statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         left.AddChild(_statusLabel);
 
+        QrLogin = new QrLoginSection(scale);
+        left.AddChild(QrLogin);
+
         Login = new LoginSection(scale);
         left.AddChild(Login);
 
@@ -258,6 +262,7 @@ public class LauncherView
     public void HideAllSections()
     {
         Login.Visible = false;
+        QrLogin.Visible = false;
         Code.Visible = false;
         Download.Visible = false;
         Actions.HideAll();

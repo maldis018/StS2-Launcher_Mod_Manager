@@ -18,6 +18,12 @@ This project uses the following third-party libraries and tools:
 - **Source**: https://github.com/SteamRE/SteamKit
 - **Note**: Used as a NuGet package without modifications. Source is available at the link above.
 
+## QRCoder
+- **License**: MIT
+- **Copyright**: (c) 2013-2025 Raffael Herrmann
+- **Source**: https://github.com/Shane32/QRCoder
+- **Note**: Renders the Steam sign-in QR code.
+
 ## .NET Runtime (Mono)
 - **License**: MIT
 - **Copyright**: (c) .NET Foundation and Contributors
