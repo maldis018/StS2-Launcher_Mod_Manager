@@ -788,7 +788,6 @@ public class DepotDownloader : IDisposable
         bool resuming = File.Exists(tempPath);
         long resumedHere = 0;
         long reusedHere = 0;
-        var local = OpenLocalChunkSource(filePath, oldFile);
 
         var fs = Storage(
             fileName,
@@ -814,8 +813,12 @@ public class DepotDownloader : IDisposable
             }
         );
 
+        // The installed file is opened only after the temp file succeeded, and
+        // inside the using chain, so a failure in either open can't leak the
+        // other handle. Both close before the verify and File.Move below.
+        LocalChunkSource local = default;
         using (fs)
-        using (local.Stream)
+        using ((local = OpenLocalChunkSource(filePath, oldFile)).Stream)
         {
             long unflushed = 0;
             foreach (var chunk in file.Chunks.OrderBy(c => c.Offset))
