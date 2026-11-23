@@ -30,12 +30,27 @@ public class DepotDownloader : IDisposable
     private const uint AppId = 2868840;
     private const int MaxRetries = 5;
     private const int MaxConcurrentDownloads = 8;
+    private const string PckFileName = "SlayTheSpire2.pck";
+    private const string TempSuffix = ".downloading";
+    private const long FlushIntervalBytes = 32L * 1024 * 1024;
+    private static readonly TimeSpan PendingWriteInterval = TimeSpan.FromSeconds(5);
 
     private readonly SteamConnection _connection;
     private readonly string _gameDir;
     private readonly string _stateDir;
     private readonly Client _cdnClient;
     private readonly DownloadProgress _progress = new();
+
+    // Files already proven to match their manifest during this instance's
+    // lifetime, keyed by path, so a retry doesn't re-hash the whole install.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string,
+        (long Length, DateTime WriteTimeUtc, string Sha1Hex)
+    > _verifiedFiles = new();
+
+    private readonly object _pendingLock = new();
+    private PendingDownload _pending;
+    private long _resumedBytes;
 
     private IReadOnlyList<Server> _servers;
     private int _serverIndex;
@@ -122,16 +137,73 @@ public class DepotDownloader : IDisposable
 
             await EnsureServersAsync(ct);
 
+            // Read-only preparation first: fetch every manifest and verify the
+            // install before anything on disk changes, so a failure here leaves
+            // the existing game exactly as it was.
+            var plans = new List<DepotPlan>();
             foreach (var (depotId, manifestId) in depots)
             {
                 ct.ThrowIfCancellationRequested();
-                await DownloadDepotAsync(depotId, manifestId, branch, ct);
+                plans.Add(await PrepareDepotAsync(depotId, manifestId, branch));
+            }
+
+            // Totals cover the whole update, including files an earlier
+            // interrupted attempt already finished, so the bar resumes at the
+            // real percentage instead of restarting from 0.
+            long alreadyDone = plans.Sum(p => p.AlreadyCompleteBytes);
+            _progress.TotalFiles = plans.Sum(p => p.FilesToDownload.Count);
+            _progress.CompletedFiles = 0;
+            _progress.TotalBytes =
+                alreadyDone + plans.Sum(p => p.FilesToDownload.Sum(f => (long)f.TotalSize));
+            _progress.DownloadedBytes = alreadyDone;
+            _resumedBytes = 0;
+            ReportProgress();
+
+            bool changesFiles = plans.Any(p =>
+                p.FilesToDownload.Count > 0 || p.FilesToDelete.Count > 0
+            );
+            if (changesFiles)
+            {
+                _pending = new PendingDownload
+                {
+                    Branch = branch,
+                    BuildId = LastDownloadedBuildId,
+                    Depots = plans
+                        .Select(p => new PendingDepot
+                        {
+                            DepotId = p.DepotId,
+                            ManifestId = p.ManifestId,
+                        })
+                        .ToList(),
+                    StartedUtc = PendingDownload.Read(_stateDir)?.StartedUtc is DateTime started
+                        && started != default
+                        ? started
+                        : DateTime.UtcNow,
+                };
+                WritePendingMarker(force: true);
+            }
+
+            DeleteOrphanedTempFiles(plans);
+
+            foreach (var plan in plans)
+            {
+                ct.ThrowIfCancellationRequested();
+                await DownloadDepotFilesAsync(plan, ct);
             }
 
             Log("All game files downloaded!");
+            if (_resumedBytes > 0)
+                Log($"Resumed {FormatSize(_resumedBytes)} from partial files");
 
-            // Remove Sentry plugin references (no android.arm64 build exists).
-            PatchGamePck(Path.Combine(_gameDir, "SlayTheSpire2.pck"));
+            // Remove Sentry plugin references (no android.arm64 build exists),
+            // then record the patched hash so later verification passes accept
+            // the patched PCK instead of re-downloading it.
+            var pckPath = Path.Combine(_gameDir, PckFileName);
+            if (PatchGamePck(pckPath))
+                RecordPatchedPck(pckPath, plans);
+
+            _pending = null;
+            PendingDownload.Delete(_stateDir);
         }
         finally
         {
@@ -370,12 +442,20 @@ public class DepotDownloader : IDisposable
         return code;
     }
 
-    private async Task DownloadDepotAsync(
-        uint depotId,
-        ulong manifestId,
-        string branch,
-        CancellationToken ct
-    )
+    // Everything needed to download one depot, computed without touching game
+    // files: the manifest, the decryption key and the file diff.
+    private sealed class DepotPlan
+    {
+        public uint DepotId;
+        public ulong ManifestId;
+        public byte[] DepotKey;
+        public DepotManifest Manifest;
+        public List<DepotManifest.FileData> FilesToDownload;
+        public List<string> FilesToDelete;
+        public long AlreadyCompleteBytes;
+    }
+
+    private async Task<DepotPlan> PrepareDepotAsync(uint depotId, ulong manifestId, string branch)
     {
         Log($"Processing depot {depotId}...");
 
@@ -388,24 +468,29 @@ public class DepotDownloader : IDisposable
 
         var oldManifest = LoadCachedManifest(depotId);
 
-        // Clean up temp files from interrupted previous downloads.
-        foreach (
-            var temp in Directory.GetFiles(_gameDir, "*.downloading", SearchOption.AllDirectories)
-        )
+        // New/changed files from the manifest diff, plus any existing file that
+        // fails on-disk SHA-1 verification.
+        var (filesToDownload, alreadyComplete) = GetFilesNeedingDownload(
+            oldManifest,
+            manifest,
+            isUpdate
+        );
+
+        return new DepotPlan
         {
-            try
-            {
-                File.Delete(temp);
-            }
-            catch { }
-        }
+            DepotId = depotId,
+            ManifestId = manifestId,
+            DepotKey = depotKey,
+            Manifest = manifest,
+            FilesToDownload = filesToDownload,
+            FilesToDelete = GetFilesToDelete(oldManifest, manifest),
+            AlreadyCompleteBytes = alreadyComplete,
+        };
+    }
 
-        // Determine which files need downloading: new/changed files from the
-        // manifest diff, plus any existing files that fail on-disk SHA-1 verification.
-        var filesToDownload = GetFilesNeedingDownload(oldManifest, manifest, isUpdate);
-        var filesToDelete = GetFilesToDelete(oldManifest, manifest);
-
-        foreach (var fileName in filesToDelete)
+    private async Task DownloadDepotFilesAsync(DepotPlan plan, CancellationToken ct)
+    {
+        foreach (var fileName in plan.FilesToDelete)
         {
             var path = Path.Combine(_gameDir, fileName.Replace('\\', '/'));
             if (File.Exists(path))
@@ -415,26 +500,21 @@ public class DepotDownloader : IDisposable
             }
         }
 
-        _progress.TotalFiles = filesToDownload.Count;
-        _progress.CompletedFiles = 0;
-        _progress.TotalBytes = filesToDownload.Sum(f => (long)f.TotalSize);
-        _progress.DownloadedBytes = 0;
-        ReportProgress();
-
-        if (filesToDownload.Count == 0)
+        if (plan.FilesToDownload.Count == 0)
         {
-            Log($"Depot {depotId}: already up to date");
+            Log($"Depot {plan.DepotId}: already up to date");
         }
         else
         {
+            long bytes = plan.FilesToDownload.Sum(f => (long)f.TotalSize);
             Log(
-                $"Downloading {filesToDownload.Count} files ({FormatSize(_progress.TotalBytes)}) with {MaxConcurrentDownloads} threads..."
+                $"Downloading {plan.FilesToDownload.Count} files ({FormatSize(bytes)}) with {MaxConcurrentDownloads} threads..."
             );
 
             using var semaphore = new SemaphoreSlim(MaxConcurrentDownloads);
             var tasks = new List<Task>();
 
-            foreach (var file in filesToDownload)
+            foreach (var file in plan.FilesToDownload)
             {
                 ct.ThrowIfCancellationRequested();
                 await semaphore.WaitAsync(ct);
@@ -445,7 +525,7 @@ public class DepotDownloader : IDisposable
                         {
                             try
                             {
-                                await DownloadFileAsync(file, depotId, depotKey, ct);
+                                await DownloadFileAsync(file, plan.DepotId, plan.DepotKey, ct);
                                 Interlocked.Increment(ref _progress.CompletedFiles);
                                 ReportProgress();
                             }
@@ -462,9 +542,41 @@ public class DepotDownloader : IDisposable
             await Task.WhenAll(tasks);
         }
 
-        SaveManifest(depotId, manifest, manifestId);
-        Log($"Depot {depotId} complete");
+        SaveManifest(plan.DepotId, plan.Manifest, plan.ManifestId);
+        Log($"Depot {plan.DepotId} complete");
     }
+
+    // Partial downloads live next to their target as "<file>.downloading" and
+    // are kept across attempts so a resume only fetches the chunks that are
+    // missing. Only temp files that no longer belong to anything we still need
+    // are removed (a file that was dropped from the manifest, or one that is
+    // already complete on disk).
+    private void DeleteOrphanedTempFiles(List<DepotPlan> plans)
+    {
+        var wanted = new HashSet<string>(
+            plans.SelectMany(p => p.FilesToDownload)
+                .Select(f => Path.GetFullPath(TempPathFor(f)))
+        );
+
+        foreach (
+            var temp in Directory.GetFiles(_gameDir, "*" + TempSuffix, SearchOption.AllDirectories)
+        )
+        {
+            if (wanted.Contains(Path.GetFullPath(temp)))
+                continue;
+            try
+            {
+                File.Delete(temp);
+            }
+            catch (Exception ex)
+            {
+                Log($"Could not delete stale temp file {temp}: {ex.Message}");
+            }
+        }
+    }
+
+    private string TempPathFor(DepotManifest.FileData file) =>
+        Path.Combine(_gameDir, file.FileName.Replace('\\', '/')) + TempSuffix;
 
     private async Task DownloadFileAsync(
         DepotManifest.FileData file,
@@ -488,34 +600,66 @@ public class DepotDownloader : IDisposable
         if (fileDir != null)
             Directory.CreateDirectory(fileDir);
 
-        // Validate existing file against manifest SHA-1 hash. A size-only check
-        // would miss corruption from interrupted writes (SetLength pre-allocates).
-        if (File.Exists(filePath) && VerifyFileHash(filePath, file))
-        {
-            Interlocked.Add(ref _progress.DownloadedBytes, (long)file.TotalSize);
-            ReportProgress();
-            return;
-        }
+        // Files reach this point only after PrepareDepotAsync found them missing
+        // or invalid, so there is no need to hash the target again here.
+        //
+        // Write into a temp file, verify, then move into place, so a partial
+        // file is never mistaken for a complete one. The temp file is kept
+        // across attempts: every chunk already in it is checked against its
+        // manifest SHA-1 and reused when it matches, so an interrupted 3 GB PCK
+        // resumes where it stopped instead of starting over.
+        var tempPath = filePath + TempSuffix;
+        bool resuming = File.Exists(tempPath);
+        long resumedHere = 0;
 
-        // Write to a temp file, verify hash, then move into place. This prevents
-        // a partially-written file from being mistaken as complete on retry.
-        var tempPath = filePath + ".downloading";
-
-        using (var fs = File.Create(tempPath))
+        using (
+            var fs = new FileStream(tempPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)
+        )
         {
+            if (fs.Length != (long)file.TotalSize)
+                fs.SetLength((long)file.TotalSize);
+
+            long unflushed = 0;
             foreach (var chunk in file.Chunks.OrderBy(c => c.Offset))
             {
                 ct.ThrowIfCancellationRequested();
 
                 var buffer = new byte[chunk.UncompressedLength];
+
+                if (resuming && TryReadValidChunk(fs, chunk, buffer))
+                {
+                    resumedHere += chunk.UncompressedLength;
+                    Interlocked.Add(ref _progress.DownloadedBytes, chunk.UncompressedLength);
+                    ReportProgress();
+                    continue;
+                }
+
                 int written = await DownloadChunkAsync(depotId, chunk, buffer, depotKey, fileName);
 
                 fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
                 fs.Write(buffer, 0, written);
 
+                // Push data to storage regularly so a process kill loses at most
+                // the last few chunks; anything torn is caught by the per-chunk
+                // check on the next resume.
+                unflushed += written;
+                if (unflushed >= FlushIntervalBytes)
+                {
+                    fs.Flush(flushToDisk: true);
+                    unflushed = 0;
+                }
+
                 Interlocked.Add(ref _progress.DownloadedBytes, written);
                 ReportProgress();
             }
+
+            fs.Flush(flushToDisk: true);
+        }
+
+        if (resumedHere > 0)
+        {
+            Interlocked.Add(ref _resumedBytes, resumedHere);
+            Log($"Resumed {FormatSize(resumedHere)} of {fileName} from partial download");
         }
 
         // Verify the completed file before committing it.
@@ -526,6 +670,34 @@ public class DepotDownloader : IDisposable
         }
 
         File.Move(tempPath, filePath, overwrite: true);
+        RememberVerified(filePath, file);
+    }
+
+    // Reads the chunk's region from a partial file and checks it against the
+    // manifest SHA-1. Chunks without a ChunkID can't be proven correct, so they
+    // are always downloaded again.
+    private static bool TryReadValidChunk(
+        FileStream fs,
+        DepotManifest.ChunkData chunk,
+        byte[] buffer
+    )
+    {
+        if (chunk.ChunkID == null || chunk.ChunkID.Length == 0)
+            return false;
+        if ((long)chunk.Offset + chunk.UncompressedLength > fs.Length)
+            return false;
+
+        try
+        {
+            fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+            fs.ReadExactly(buffer, 0, (int)chunk.UncompressedLength);
+        }
+        catch (EndOfStreamException)
+        {
+            return false;
+        }
+
+        return VerifyChunkHash(buffer, (int)chunk.UncompressedLength, chunk);
     }
 
     // Computes SHA-1 of a decompressed chunk and compares it to the manifest ChunkID.
@@ -539,29 +711,75 @@ public class DepotDownloader : IDisposable
     }
 
     // Computes SHA-1 of a file on disk and compares it to the manifest hash.
-    private static bool VerifyFileHash(string path, DepotManifest.FileData file)
+    private static bool VerifyFileHash(string path, DepotManifest.FileData file) =>
+        ComputeFileSha1(path, (long)file.TotalSize) is byte[] hash
+        && hash.AsSpan().SequenceEqual(file.FileHash);
+
+    // SHA-1 of a file, or null when it is missing, unreadable or not the
+    // expected length (a size mismatch is decided without reading the file).
+    private static byte[] ComputeFileSha1(string path, long expectedLength)
     {
         try
         {
             var info = new FileInfo(path);
-            if (info.Length != (long)file.TotalSize)
-                return false;
+            if (!info.Exists || info.Length != expectedLength)
+                return null;
 
             using var fs = File.OpenRead(path);
-            var hash = System.Security.Cryptography.SHA1.HashData(fs);
-            return hash.AsSpan().SequenceEqual(file.FileHash);
+            return System.Security.Cryptography.SHA1.HashData(fs);
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 
-    // Builds the list of files that need downloading. For manifest changes, uses
-    // the hash diff. For all files in the target manifest, verifies the on-disk
-    // copy against the expected SHA-1 — catching corruption from interrupted
-    // writes, disk errors, or missing files.
-    private List<DepotManifest.FileData> GetFilesNeedingDownload(
+    // True when the file on disk is the manifest's version of it. Results are
+    // cached per instance by (length, mtime) so a retry of the same download
+    // doesn't hash the whole install again. The PCK also counts as valid when
+    // it is our own Sentry-patched copy of exactly this manifest version.
+    private bool IsFileValid(string path, DepotManifest.FileData file)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists || info.Length != (long)file.TotalSize)
+            return false;
+
+        var expected = Convert.ToHexString(file.FileHash);
+        if (
+            _verifiedFiles.TryGetValue(path, out var seen)
+            && seen.Length == info.Length
+            && seen.WriteTimeUtc == info.LastWriteTimeUtc
+            && seen.Sha1Hex == expected
+        )
+            return true;
+
+        var actual = ComputeFileSha1(path, (long)file.TotalSize);
+        if (actual == null)
+            return false;
+
+        var actualHex = Convert.ToHexString(actual);
+        bool valid = actualHex == expected || IsOurPatchedPck(file, actualHex);
+        if (valid)
+            _verifiedFiles[path] = (info.Length, info.LastWriteTimeUtc, expected);
+        return valid;
+    }
+
+    private void RememberVerified(string path, DepotManifest.FileData file)
+    {
+        var info = new FileInfo(path);
+        _verifiedFiles[path] = (
+            info.Length,
+            info.LastWriteTimeUtc,
+            Convert.ToHexString(file.FileHash)
+        );
+    }
+
+    // Builds the list of files that need downloading and the byte count of
+    // files that belong to this update but are already correct on disk (left
+    // there by an earlier, interrupted attempt). Every file in the target
+    // manifest is checked against its SHA-1, which also catches corruption
+    // from disk errors or missing files.
+    private (List<DepotManifest.FileData> Files, long AlreadyCompleteBytes) GetFilesNeedingDownload(
         DepotManifest oldManifest,
         DepotManifest newManifest,
         bool isUpdate
@@ -569,6 +787,7 @@ public class DepotDownloader : IDisposable
     {
         var oldFiles = oldManifest?.Files.ToDictionary(f => f.FileName);
         var result = new List<DepotManifest.FileData>();
+        long alreadyComplete = 0;
         int verified = 0;
         int corrupt = 0;
 
@@ -577,34 +796,35 @@ public class DepotDownloader : IDisposable
             if (file.Flags.HasFlag(EDepotFileFlag.Directory))
                 continue;
 
-            // Manifest changed for this file — always re-download.
-            if (isUpdate && oldFiles != null)
-            {
-                if (
-                    !oldFiles.TryGetValue(file.FileName, out var oldFile)
-                    || !file.FileHash.SequenceEqual(oldFile.FileHash)
-                )
-                {
-                    result.Add(file);
-                    continue;
-                }
-            }
+            // "Part of this update" = new or changed versus the installed
+            // manifest, or everything on a fresh install. Those files count
+            // toward the progress total even when an earlier attempt already
+            // finished them.
+            bool partOfUpdate =
+                oldFiles == null
+                || (
+                    isUpdate
+                    && (
+                        !oldFiles.TryGetValue(file.FileName, out var oldFile)
+                        || !file.FileHash.SequenceEqual(oldFile.FileHash)
+                    )
+                );
 
-            // Verify on-disk file matches the manifest hash.
             var filePath = Path.Combine(_gameDir, file.FileName.Replace('\\', '/'));
-            if (VerifyFileHash(filePath, file))
+            if (IsFileValid(filePath, file))
             {
                 verified++;
+                if (partOfUpdate)
+                    alreadyComplete += (long)file.TotalSize;
+                continue;
             }
-            else
+
+            if (!partOfUpdate && File.Exists(filePath))
             {
-                if (File.Exists(filePath))
-                {
-                    corrupt++;
-                    Log($"File needs re-download (hash mismatch): {file.FileName}");
-                }
-                result.Add(file);
+                corrupt++;
+                Log($"File needs re-download (hash mismatch): {file.FileName}");
             }
+            result.Add(file);
         }
 
         if (verified > 0)
@@ -612,7 +832,7 @@ public class DepotDownloader : IDisposable
         if (corrupt > 0)
             Log($"Found {corrupt} corrupt files requiring re-download");
 
-        return result;
+        return (result, alreadyComplete);
     }
 
     private static List<string> GetFilesToDelete(
@@ -986,6 +1206,97 @@ public class DepotDownloader : IDisposable
         return 0;
     }
 
+    // PatchGamePck edits the PCK in place, so its SHA-1 stops matching the
+    // manifest. We record which manifest version was patched and the resulting
+    // hash; IsFileValid then accepts that exact file instead of treating it as
+    // corrupt and re-downloading ~3 GB on every later verification pass.
+    private sealed class PckPatchRecord
+    {
+        public string ManifestSha1 { get; set; }
+        public string PatchedSha1 { get; set; }
+    }
+
+    private string PckPatchRecordPath => Path.Combine(_stateDir, "pck_patch.json");
+
+    private void RecordPatchedPck(string pckPath, List<DepotPlan> plans)
+    {
+        var pckFile = plans
+            .SelectMany(p => p.Manifest.Files)
+            .FirstOrDefault(f => f.FileName.Replace('\\', '/') == PckFileName);
+        if (pckFile == null)
+            return;
+
+        var patched = ComputeFileSha1(pckPath, (long)pckFile.TotalSize);
+        if (patched == null)
+            return;
+
+        try
+        {
+            var record = new PckPatchRecord
+            {
+                ManifestSha1 = Convert.ToHexString(pckFile.FileHash),
+                PatchedSha1 = Convert.ToHexString(patched),
+            };
+            File.WriteAllText(
+                PckPatchRecordPath,
+                System.Text.Json.JsonSerializer.Serialize(record)
+            );
+            RememberVerified(pckPath, pckFile);
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to record patched PCK hash: {ex.Message}");
+        }
+    }
+
+    private bool IsOurPatchedPck(DepotManifest.FileData file, string actualSha1Hex)
+    {
+        if (file.FileName.Replace('\\', '/') != PckFileName)
+            return false;
+
+        try
+        {
+            if (!File.Exists(PckPatchRecordPath))
+                return false;
+            var record = System.Text.Json.JsonSerializer.Deserialize<PckPatchRecord>(
+                File.ReadAllText(PckPatchRecordPath)
+            );
+            return record != null
+                && record.ManifestSha1 == Convert.ToHexString(file.FileHash)
+                && record.PatchedSha1 == actualSha1Hex;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void WritePendingMarker(bool force = false)
+    {
+        var pending = _pending;
+        if (pending == null)
+            return;
+
+        lock (_pendingLock)
+        {
+            var now = DateTime.UtcNow;
+            if (!force && now - pending.LastProgressUtc < PendingWriteInterval)
+                return;
+
+            pending.TotalBytes = Interlocked.Read(ref _progress.TotalBytes);
+            pending.DownloadedBytes = Interlocked.Read(ref _progress.DownloadedBytes);
+            pending.LastProgressUtc = now;
+            try
+            {
+                pending.Write(_stateDir);
+            }
+            catch (Exception ex)
+            {
+                Log($"Failed to update pending marker: {ex.Message}");
+            }
+        }
+    }
+
     private void Log(string msg)
     {
         PatchHelper.Log($"[Depot] {msg}");
@@ -995,6 +1306,7 @@ public class DepotDownloader : IDisposable
     private void ReportProgress()
     {
         ProgressChanged?.Invoke(_progress);
+        WritePendingMarker();
     }
 
     private static string FormatSize(long bytes)
@@ -1009,11 +1321,13 @@ public class DepotDownloader : IDisposable
     }
 
     // Patches the PCK in-place to disable the Sentry autoload and GDExtension
-    // entries (no android.arm64 build exists for the Sentry plugin).
-    public static void PatchGamePck(string pckPath)
+    // entries (no android.arm64 build exists for the Sentry plugin). Returns
+    // true when this call changed the file (false if it was already patched,
+    // missing, or patching failed).
+    public static bool PatchGamePck(string pckPath)
     {
         if (!File.Exists(pckPath))
-            return;
+            return false;
 
         try
         {
@@ -1022,7 +1336,7 @@ public class DepotDownloader : IDisposable
 
             uint magic = reader.ReadUInt32();
             if (magic != 0x43504447) // "GDPC"
-                return;
+                return false;
 
             uint formatVersion = reader.ReadUInt32();
             reader.ReadUInt32(); // major
@@ -1059,10 +1373,12 @@ public class DepotDownloader : IDisposable
 
             if (patched)
                 PatchHelper.Log("Patched game PCK: removed Sentry plugin references");
+            return patched;
         }
         catch (Exception ex)
         {
             PatchHelper.Log($"PCK patching failed (non-fatal): {ex.Message}");
+            return false;
         }
     }
 
