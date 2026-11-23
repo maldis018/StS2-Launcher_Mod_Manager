@@ -940,7 +940,7 @@ public class LauncherController
         var tcs = new TaskCompletionSource<string>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        using var probeCts = new CancellationTokenSource();
+        var probeCts = new CancellationTokenSource();
         BranchPickerDialog dialog = null;
 
         // The image-cache repair only makes sense once game files exist (it wipes
@@ -990,6 +990,17 @@ public class LauncherController
 
         var picked = await tcs.Task;
         probeCts.Cancel();
+        // Don't wait for the probe to wind down: a CDN request already in
+        // flight can't be cancelled (SteamKit2 takes no token for it) and runs
+        // until its timeout. The probe has its own DepotDownloader, so it can
+        // finish alongside the download; late results go to a closed dialog
+        // and are dropped by the IsInstanceValid check above.
+        _ = ObserveProbeAsync(probe, probeCts);
+        return picked;
+    }
+
+    private static async Task ObserveProbeAsync(Task probe, CancellationTokenSource probeCts)
+    {
         try
         {
             await probe;
@@ -999,7 +1010,10 @@ public class LauncherController
         {
             PatchHelper.Log($"[Launcher] Branch version probe failed: {ex.Message}");
         }
-        return picked;
+        finally
+        {
+            probeCts.Dispose();
+        }
     }
 
     private void ShowAtlasWipeConfirm()
