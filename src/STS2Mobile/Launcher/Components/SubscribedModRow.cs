@@ -70,7 +70,7 @@ public class SubscribedModRow : PanelContainer
         vbox.AddChild(statusLabel);
 
         var detailButton = new StyledButton(
-            "DETAIL",
+            Loc.Tr("상세", "DETAIL"),
             scale,
             fontSize: btnFont,
             height: btnHeight,
@@ -83,7 +83,7 @@ public class SubscribedModRow : PanelContainer
         if (showStashToggle)
         {
             var stashButton = new StyledButton(
-                disabled ? "ENABLE" : "DISABLE",
+                disabled ? Loc.Tr("활성화", "ENABLE") : Loc.Tr("비활성화", "DISABLE"),
                 scale,
                 fontSize: btnFont,
                 height: btnHeight,
@@ -98,7 +98,7 @@ public class SubscribedModRow : PanelContainer
         }
 
         var unsubButton = new StyledButton(
-            "UNSUBSCRIBE",
+            Loc.Tr("구독 취소", "UNSUBSCRIBE"),
             scale,
             fontSize: btnFont,
             height: btnHeight,

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Modding;
 
@@ -30,7 +31,13 @@ public static class ModStasher
                 .Scan()
                 .FirstOrDefault(m => !m.Disabled && m.Id == info.Id);
             if (activeSameId != null)
-                return (false, $"'{info.Id}' is already enabled (at {activeSameId.TopLevelDir}).");
+                return (
+                    false,
+                    Loc.Tr(
+                        $"'{info.Id}' 모드는 이미 활성화되어 있습니다 ({activeSameId.TopLevelDir}).",
+                        $"'{info.Id}' is already enabled (at {activeSameId.TopLevelDir})."
+                    )
+                );
         }
 
         return Move(
@@ -50,17 +57,38 @@ public static class ModStasher
     {
         var src = info?.TopLevelDir;
         if (string.IsNullOrEmpty(src))
-            return (false, "Mod has no containing folder the launcher can move.");
+            return (
+                false,
+                Loc.Tr(
+                    "런처가 옮길 수 있는 모드 폴더가 없습니다.",
+                    "Mod has no containing folder the launcher can move."
+                )
+            );
         if (!AppPaths.IsDirectChildOf(expectRoot, src))
-            return (false, $"Refusing to {action}: not a direct child of {expectRoot}.");
+            return (
+                false,
+                Loc.Tr(
+                    $"{(action == "enable" ? "활성화" : "비활성화")}할 수 없습니다: 모드 폴더가 {expectRoot}의 바로 아래에 있지 않습니다.",
+                    $"Refusing to {action}: not a direct child of {expectRoot}."
+                )
+            );
         if (!Directory.Exists(src))
-            return (false, "Mod folder no longer exists — refresh the list.");
+            return (
+                false,
+                Loc.Tr(
+                    "모드 폴더가 더 이상 없습니다. 새로고침해 주세요.",
+                    "Mod folder no longer exists — refresh the list."
+                )
+            );
 
         var dest = Path.Combine(destRoot, Path.GetFileName(src));
         if (Directory.Exists(dest) || File.Exists(dest))
             return (
                 false,
-                $"'{Path.GetFileName(src)}' already exists in the destination folder — resolve it in a file manager first."
+                Loc.Tr(
+                    $"대상 폴더에 이미 같은 이름의 항목이 있습니다: '{Path.GetFileName(src)}'. 파일 관리자에서 먼저 정리해 주세요.",
+                    $"'{Path.GetFileName(src)}' already exists in the destination folder — resolve it in a file manager first."
+                )
             );
 
         try

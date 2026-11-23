@@ -70,7 +70,11 @@ public class WorkshopDependencyDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", (int)(10 * scale));
         box.AddChild(vbox);
 
-        var title = new StyledLabel("This mod requires:", scale, fontSize: 16);
+        var title = new StyledLabel(
+            Loc.Tr("이 모드에 필요한 모드:", "This mod requires:"),
+            scale,
+            fontSize: 16
+        );
         vbox.AddChild(title);
 
         var scroll = new ScrollContainer();
@@ -101,12 +105,12 @@ public class WorkshopDependencyDialog : ColorRect
 
             if (alreadySubscribed.Contains(dep.PublishedFileId))
             {
-                row.AddChild(Ui.MakePill("Subscribed", scale, Ui.Success));
+                row.AddChild(Ui.MakePill(Loc.Tr("구독 중", "Subscribed"), scale, Ui.Success));
                 continue;
             }
 
             var depButton = new StyledButton(
-                "SUBSCRIBE",
+                Loc.Tr("구독", "SUBSCRIBE"),
                 scale,
                 fontSize: 12,
                 height: 44,
@@ -135,7 +139,7 @@ public class WorkshopDependencyDialog : ColorRect
                                 return;
                             if (success)
                             {
-                                depButton.Text = "Subscribed";
+                                depButton.Text = Loc.Tr("구독 중", "Subscribed");
                                 depButton.Disabled = true;
                             }
                             else
@@ -150,7 +154,7 @@ public class WorkshopDependencyDialog : ColorRect
         }
 
         var closeButton = new StyledButton(
-            "CLOSE",
+            Loc.Tr("닫기", "CLOSE"),
             scale,
             fontSize: 14,
             height: 48,

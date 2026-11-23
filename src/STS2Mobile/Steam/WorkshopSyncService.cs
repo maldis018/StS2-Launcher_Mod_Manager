@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using STS2Mobile.Modding;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Steam;
 
@@ -564,7 +565,13 @@ public static class WorkshopSyncService
             d.PublishedFileId == publishedFileId && !string.IsNullOrEmpty(d.Title)
         );
         if (item == null)
-            return (null, "Workshop item not found or inaccessible.");
+            return (
+                null,
+                Loc.Tr(
+                    "창작마당 아이템을 찾을 수 없거나 접근할 수 없습니다.",
+                    "Workshop item not found or inaccessible."
+                )
+            );
         ct.ThrowIfCancellationRequested();
 
         var cfg = ModConfig.Load();

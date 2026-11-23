@@ -63,7 +63,7 @@ public class WorkshopBrowserPane : VBoxContainer
         AddChild(searchRow);
 
         _searchEdit = new StyledLineEdit(
-            Loc.Tr("창작마당 검색 또는 URL/ID 붙여넣기…", "Search Workshop or paste item URL/ID…"),
+            Loc.Tr("창작마당 검색 또는 URL/ID 붙여넣기...", "Search Workshop or paste item URL/ID…"),
             scale
         );
         _searchEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -71,7 +71,7 @@ public class WorkshopBrowserPane : VBoxContainer
         searchRow.AddChild(_searchEdit);
 
         _searchButton = new StyledButton(
-            "SEARCH",
+            Loc.Tr("검색", "SEARCH"),
             scale,
             fontSize: 13,
             height: Ui.TouchHeight,
@@ -104,16 +104,21 @@ public class WorkshopBrowserPane : VBoxContainer
         _sortOption.AddThemeStyleboxOverride("hover", Ui.Filled(scale, Ui.CardHover));
         _sortOption.AddThemeStyleboxOverride("pressed", Ui.Filled(scale, Ui.CardDown));
         _sortOption.AddThemeColorOverride("font_color", Ui.TextPrimary);
-        _sortOption.AddItem("Popular", (int)WorkshopQuerySort.Popular);
-        _sortOption.AddItem("Newest", (int)WorkshopQuerySort.Newest);
-        _sortOption.AddItem("Trending", (int)WorkshopQuerySort.Trending);
-        _sortOption.AddItem("Last Updated", (int)WorkshopQuerySort.LastUpdated);
-        _sortOption.AddItem("Top Rated", (int)WorkshopQuerySort.TopRated);
+        _sortOption.AddItem(Loc.Tr("인기순", "Popular"), (int)WorkshopQuerySort.Popular);
+        _sortOption.AddItem(Loc.Tr("최신순", "Newest"), (int)WorkshopQuerySort.Newest);
+        _sortOption.AddItem(Loc.Tr("급상승", "Trending"), (int)WorkshopQuerySort.Trending);
+        _sortOption.AddItem(Loc.Tr("최근 업데이트순", "Last Updated"), (int)WorkshopQuerySort.LastUpdated);
+        _sortOption.AddItem(Loc.Tr("평점순", "Top Rated"), (int)WorkshopQuerySort.TopRated);
         _sortOption.Selected = 0;
         _sortOption.ItemSelected += _ => OnSearchPressed();
         filterRow.AddChild(_sortOption);
 
-        _tagsToggleButton = new StyledButton("TAGS", scale, fontSize: 13, height: Ui.TouchHeight);
+        _tagsToggleButton = new StyledButton(
+            Loc.Tr("태그", "TAGS"),
+            scale,
+            fontSize: 13,
+            height: Ui.TouchHeight
+        );
         _tagsToggleButton.ToggleMode = true;
         _tagsToggleButton.Toggled += pressed => _tagsPanel.Visible = pressed;
         filterRow.AddChild(_tagsToggleButton);
@@ -149,7 +154,7 @@ public class WorkshopBrowserPane : VBoxContainer
         _scroll.AddChild(_resultsList);
 
         _loadMoreButton = new StyledButton(
-            "LOAD MORE",
+            Loc.Tr("더 보기", "LOAD MORE"),
             scale,
             fontSize: 13,
             height: Ui.TouchHeight
@@ -173,7 +178,7 @@ public class WorkshopBrowserPane : VBoxContainer
     {
         bool first = !_initialized;
         if (first)
-            RunOnMain(() => SetStatus(Loc.Tr("Steam 연결 중…", "Connecting to Steam…"), InfoColor));
+            RunOnMain(() => SetStatus(Loc.Tr("Steam에 연결하는 중...", "Connecting to Steam…"), InfoColor));
 
         var (ok, conn) = await ensureSession().ConfigureAwait(false);
         if (!ok)
@@ -182,7 +187,7 @@ public class WorkshopBrowserPane : VBoxContainer
             RunOnMain(() =>
                 SetStatus(
                     Loc.Tr(
-                        "창작마당 기능을 쓰려면 Steam 로그인이 필요합니다.",
+                        "창작마당을 사용하려면 Steam 로그인이 필요합니다.",
                         "Steam login is required for Workshop features."
                     ),
                     WarnColor
@@ -211,7 +216,7 @@ public class WorkshopBrowserPane : VBoxContainer
             SetStatus(
                 Loc.Tr(
                     $"{_totalLoaded} / {_totalAvailable}개",
-                    "{_totalLoaded} / {_totalAvailable} item(s)"
+                    $"{_totalLoaded} / {_totalAvailable} item(s)"
                 ),
                 InfoColor
             );
@@ -332,7 +337,7 @@ public class WorkshopBrowserPane : VBoxContainer
 
         RunOnMain(() =>
         {
-            SetStatus(Loc.Tr("불러오는 중…", "Loading…"), InfoColor);
+            SetStatus(Loc.Tr("불러오는 중...", "Loading…"), InfoColor);
             _searchButton.Disabled = true;
             _loadMoreButton.Disabled = true;
         });
@@ -383,7 +388,7 @@ public class WorkshopBrowserPane : VBoxContainer
                 SetStatus(
                     Loc.Tr(
                         $"{_totalLoaded} / {_totalAvailable}개",
-                        "{_totalLoaded} / {_totalAvailable} item(s)"
+                        $"{_totalLoaded} / {_totalAvailable} item(s)"
                     ),
                     InfoColor
                 );
@@ -471,7 +476,7 @@ public class WorkshopBrowserPane : VBoxContainer
         RunOnMain(() =>
         {
             ClearResults();
-            SetStatus(Loc.Tr("아이템 조회 중…", "Looking up item…"), InfoColor);
+            SetStatus(Loc.Tr("아이템을 조회하는 중...", "Looking up item…"), InfoColor);
             _searchButton.Disabled = true;
         });
 
@@ -487,7 +492,7 @@ public class WorkshopBrowserPane : VBoxContainer
                 {
                     SetStatus(
                         Loc.Tr(
-                            "조회 시간 초과 — 다시 시도해 주세요.",
+                            "조회 시간이 초과되었습니다. 다시 시도해 주세요.",
                             "Lookup timed out — try again."
                         ),
                         WarnColor
@@ -509,7 +514,7 @@ public class WorkshopBrowserPane : VBoxContainer
                 {
                     SetStatus(
                         Loc.Tr(
-                            $"id {pfid} 에 해당하는 창작마당 아이템이 없습니다(또는 이 계정으로 접근 불가).",
+                            $"ID {pfid}에 해당하는 창작마당 아이템이 없거나 이 계정으로 접근할 수 없습니다.",
                             $"No Workshop item found for id {pfid} (or this account cannot access it)."
                         ),
                         WarnColor
@@ -735,10 +740,10 @@ public class WorkshopBrowserPane : VBoxContainer
 
         if (item.FileSize > LargeDownloadWarningBytes)
         {
-            var size = STS2Mobile.Launcher.LauncherModel.FormatSize((long)item.FileSize);
+            var size = Loc.Size((long)item.FileSize);
             var confirmed = await ConfirmAsync(
                 Loc.Tr(
-                    $"'{item.Title}' 크기는 {size} 입니다. 구독하고 다운로드할까요?",
+                    $"'{item.Title}'의 크기는 {size}입니다. 구독하고 다운로드할까요?",
                     $"'{item.Title}' is {size}. Subscribe and download?"
                 )
             );
@@ -847,7 +852,7 @@ public class WorkshopBrowserPane : VBoxContainer
 
         var confirmed = await ConfirmAsync(
             Loc.Tr(
-                $"'{item.Title}' 구독을 해제할까요? 기기에서 모드가 삭제됩니다.",
+                $"'{item.Title}' 구독을 취소할까요? 기기에서 모드가 삭제됩니다.",
                 $"Unsubscribe from '{item.Title}'? This removes the mod from your device."
             )
         );
@@ -875,7 +880,7 @@ public class WorkshopBrowserPane : VBoxContainer
                 SetCardBusy(pfid, false);
                 RefreshCardStatus(pfid);
                 SetStatus(
-                    Loc.Tr($"구독 해제 실패: {ex.Message}", $"Unsubscribe failed: {ex.Message}"),
+                    Loc.Tr($"구독 취소 실패: {ex.Message}", $"Unsubscribe failed: {ex.Message}"),
                     WarnColor
                 );
             });
@@ -891,9 +896,9 @@ public class WorkshopBrowserPane : VBoxContainer
             RefreshCardStatus(pfid);
             SetStatus(
                 removed
-                    ? Loc.Tr("구독 해제됨.", "Unsubscribed.")
+                    ? Loc.Tr("구독이 취소되었습니다.", "Unsubscribed.")
                     : Loc.Tr(
-                        "Steam 구독은 해제됨; 로컬 정리 건너뜀.",
+                        "Steam 구독은 취소되었지만 로컬 정리는 건너뛰었습니다.",
                         "Unsubscribed on Steam; local cleanup skipped."
                     ),
                 InfoColor

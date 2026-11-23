@@ -78,8 +78,11 @@ public class WorkshopBrowseCard : PanelContainer
         titleLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         info.AddChild(titleLabel);
 
-        var statsText =
-            $"{item.Subscriptions} subscriber(s) · {STS2Mobile.Launcher.LauncherModel.FormatSize((long)item.FileSize)} · {(item.VoteScore * 100f):F0}% rated";
+        var sizeText = Loc.Size((long)item.FileSize);
+        var statsText = Loc.Tr(
+            $"구독자 {item.Subscriptions}명 · {sizeText} · 평점 {(item.VoteScore * 100f):F0}%",
+            $"{item.Subscriptions} subscriber(s) · {sizeText} · {(item.VoteScore * 100f):F0}% rated"
+        );
         var statsLabel = new StyledLabel(
             statsText,
             scale,
@@ -104,7 +107,7 @@ public class WorkshopBrowseCard : PanelContainer
         // Explicit detail entry, left of the action button — replaces card-body
         // tap so scrolling and tapping never fight over the same touch.
         var detailButton = new StyledButton(
-            "DETAIL",
+            Loc.Tr("상세", "DETAIL"),
             scale,
             fontSize: btnFont,
             height: btnHeight,
@@ -116,7 +119,7 @@ public class WorkshopBrowseCard : PanelContainer
         row.AddChild(detailButton);
 
         _actionButton = new StyledButton(
-            "SUBSCRIBE",
+            Loc.Tr("구독", "SUBSCRIBE"),
             scale,
             fontSize: btnFont,
             height: btnHeight,
@@ -176,7 +179,9 @@ public class WorkshopBrowseCard : PanelContainer
         // subscribed the action becomes UNSUBSCRIBE, which deletes local files —
         // destructive actions read as Danger EVERYWHERE, same as the SUBSCRIBED
         // tab (user report: the two screens disagreed).
-        _actionButton.Text = subscribed ? "UNSUBSCRIBE" : "SUBSCRIBE";
+        _actionButton.Text = subscribed
+            ? Loc.Tr("구독 취소", "UNSUBSCRIBE")
+            : Loc.Tr("구독", "SUBSCRIBE");
         _actionButton.ApplyVariant(
             _scale,
             subscribed ? ButtonVariant.Danger : ButtonVariant.Primary
