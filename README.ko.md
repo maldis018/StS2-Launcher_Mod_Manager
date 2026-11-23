@@ -95,7 +95,7 @@ PC 에서는 게임 실행 옵션(**Steam > Slay the Spire 2 > 속성 > 실행 �
 
 ## 도움말과 버그 제보
 
-스크린샷이 포함된 단계별 안내는 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 에 있습니다 (영어판: [docs/USER_GUIDE.en.md](docs/USER_GUIDE.en.md)) (StS2 Launcher Mod 기준으로 쓰였지만 거의 전부 Redux 에도 해당합니다).
+스크린샷이 포함된 단계별 안내는 [docs/USER_GUIDE.ko.md](docs/USER_GUIDE.ko.md) 에 있습니다 (영어판: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)). 일부 스크린샷은 아직 이전 StS2 Launcher Mod 화면입니다.
 
 버그를 제보하려면 **Debug** 를 켜고 문제를 재현한 뒤 `StS2LauncherRedux/Logs/` 의 최신 파일을 [이슈](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)에 첨부해 주세요.
 

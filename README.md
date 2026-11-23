@@ -95,7 +95,7 @@ The game itself, your sign-in and your live saves are in the app's private stora
 
 ## Help and bug reports
 
-A step-by-step guide with screenshots is in [docs/USER_GUIDE.en.md](docs/USER_GUIDE.en.md) (Korean: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)). Some screenshots still show the older StS2 Launcher Mod UI.
+A step-by-step guide with screenshots is in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (Korean: [docs/USER_GUIDE.ko.md](docs/USER_GUIDE.ko.md)). Some screenshots still show the older StS2 Launcher Mod UI.
 
 To report a bug, turn on **Debug**, reproduce the problem, and attach the newest file from `StS2LauncherRedux/Logs/` to an [issue](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues).
 
