@@ -20,7 +20,7 @@ Steps:
 
 1. Download the latest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) and install it (allow installs from your browser or file manager when Android asks).
 2. Open **StS2 Launcher Redux** and allow **All files access** when asked. Mods, backups and logs live in a shared folder, so the launcher needs it.
-3. Sign in with your Steam account. Steam Guard codes are supported, and the sign-in token is stored encrypted with the Android Keystore.
+3. Sign in by scanning the on-screen QR code with the Steam app on another phone or tablet, so the launcher never sees your password. With only one phone, sign in on this phone with your password and approve the request in the Steam app (Steam Guard codes also work). The password is never stored, and the sign-in token is stored encrypted with the Android Keystore.
 4. Pick a Steam branch (normally `public`), download the game, then tap **PLAY**.
 
 To update, tap **CHECK LAUNCHER UPDATE** in the app (it also checks on start), or install a newer APK over the old one. Updates keep your sign-in, saves and downloaded game.
@@ -40,7 +40,7 @@ Everything in the old shared folder can come over. On first launch (once All fil
 ## What it does
 
 **Steam and the game**
-- Steam sign-in through SteamKit2, with Steam Guard. No PC, Steam client or Steamworks SDK needed.
+- Steam sign-in through SteamKit2: password-free QR sign-in from another device, or password plus Steam app approval or Steam Guard code on one phone. No PC, Steam client or Steamworks SDK needed.
 - Game download straight from Steam's depots, with update checks and a branch picker (`public`, `public-beta`, ...). Switching branches does a clean re-download.
 
 **Mods**

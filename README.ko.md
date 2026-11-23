@@ -20,7 +20,7 @@
 
 1. [Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)에서 최신 `StS2LauncherRedux-vX.Y.Z.apk`를 받아 설치합니다 (안드로이드가 물으면 브라우저나 파일 매니저의 설치를 허용하세요).
 2. **StS2 Launcher Redux**를 열고 **모든 파일 액세스**를 허용합니다. 모드·백업·로그가 공유 폴더에 있어서 필요합니다.
-3. Steam 계정으로 로그인합니다. Steam Guard 코드를 지원하며, 로그인 토큰은 Android Keystore로 암호화해 저장합니다.
+3. 다른 휴대폰이나 태블릿의 Steam 앱으로 화면의 QR 코드를 스캔해 로그인합니다. 이 방법은 런처가 비밀번호를 다루지 않습니다. 휴대폰이 하나뿐이면 이 휴대폰에서 비밀번호로 로그인하고 Steam 앱에서 요청을 승인하세요 (Steam Guard 코드도 됩니다). 비밀번호는 저장하지 않으며, 로그인 토큰은 Android Keystore로 암호화해 저장합니다.
 4. Steam 브랜치(보통 `public`)를 고르고 게임을 받은 뒤 **게임 시작**을 누릅니다.
 
 업데이트는 앱의 **런처 업데이트 확인**으로 합니다 (시작할 때도 확인합니다). 새 APK를 덮어 설치해도 됩니다. 업데이트해도 로그인, 세이브, 받은 게임은 유지됩니다.
@@ -40,7 +40,7 @@ Redux는 별도 앱(패키지 `dev.aldis.sts2launcherredux`, 폴더 `/storage/em
 ## 기능
 
 **Steam과 게임**
-- SteamKit2 기반 Steam 로그인 (Steam Guard 지원). PC, Steam 클라이언트, Steamworks SDK가 필요 없습니다.
+- SteamKit2 기반 Steam 로그인: 다른 기기에서 QR 코드로 비밀번호 없이 로그인하거나, 휴대폰 하나로 비밀번호 입력 후 Steam 앱 승인 또는 Steam Guard 코드로 로그인합니다. PC, Steam 클라이언트, Steamworks SDK가 필요 없습니다.
 - Steam depot에서 직접 게임 다운로드, 업데이트 확인, 브랜치 선택 (`public`, `public-beta`, ...). 브랜치를 바꾸면 깨끗하게 다시 받습니다.
 
 **모드**
