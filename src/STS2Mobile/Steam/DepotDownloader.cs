@@ -42,7 +42,12 @@ public class DepotDownloader : IDisposable
     private readonly DownloadProgress _progress = new();
 
     // Files already proven to match their manifest during this instance's
-    // lifetime, keyed by path, so a retry doesn't re-hash the whole install.
+    // lifetime, keyed by path. Within one DownloadAsync each file is checked
+    // only once (in prepare), so the cache pays off only when DownloadAsync
+    // runs again on the same instance, e.g. an in-session auto-resume: that
+    // rerun's prepare skips re-hashing files the earlier attempt verified or
+    // finished. A caller that builds a new DepotDownloader per attempt starts
+    // with an empty cache.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<
         string,
         (long Length, DateTime WriteTimeUtc, string Sha1Hex)
@@ -119,9 +124,11 @@ public class DepotDownloader : IDisposable
     public async Task DownloadAsync(string branch = "public", CancellationToken ct = default)
     {
         _connection.SuspendIdleTimeout();
-        // The same instance can run several attempts; a marker object left
-        // over from a failed one would be rewritten with this attempt's
-        // still-zero totals during the prepare step.
+        // A caller may run DownloadAsync more than once on the same instance.
+        // Clear any marker object left over from a failed attempt: otherwise
+        // the ReportProgress below, which runs before this attempt assigns its
+        // own marker, would write the old attempt's branch, build and depots
+        // back to disk with this attempt's totals.
         _pending = null;
         try
         {
@@ -152,8 +159,13 @@ public class DepotDownloader : IDisposable
             }
 
             // Totals cover the whole update, including files an earlier
-            // interrupted attempt already finished, so the bar resumes at the
-            // real percentage instead of restarting from 0.
+            // interrupted attempt already finished, so the bar does not
+            // restart from 0. Bytes sitting in partial *.downloading temps are
+            // not counted here: temps are preallocated to full length, so only
+            // the per-chunk SHA-1 check in DownloadFileAsync can tell how much
+            // of one is real. Those bytes are added as each chunk revalidates,
+            // so on resume the bar starts below the last value shown and
+            // fast-forwards while the partial files are re-read.
             long alreadyDone = plans.Sum(p => p.AlreadyCompleteBytes);
             _progress.TotalFiles = plans.Sum(p => p.FilesToDownload.Count);
             _progress.CompletedFiles = 0;
@@ -739,8 +751,8 @@ public class DepotDownloader : IDisposable
     }
 
     // True when the file on disk is the manifest's version of it. Results are
-    // cached per instance by (length, mtime) so a retry of the same download
-    // doesn't hash the whole install again. The PCK also counts as valid when
+    // cached per instance by (length, mtime) so a rerun of DownloadAsync on
+    // the same instance doesn't hash the whole install again. The PCK also counts as valid when
     // it is our own Sentry-patched copy of exactly this manifest version.
     private bool IsFileValid(string path, DepotManifest.FileData file)
     {
