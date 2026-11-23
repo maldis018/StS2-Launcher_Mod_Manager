@@ -59,6 +59,17 @@ public class LauncherModel : IDisposable
     public string SavedAccountName => _credentialStore.AccountName;
     public string SavedRefreshToken => _credentialStore.RefreshToken;
     public string FailReason => _failReason;
+
+    // True when an interactive sign-in succeeded (token saved) but the first
+    // Steam connection with the new token kept timing out. The UI then offers
+    // Retry with the saved login instead of a fresh sign-in.
+    public bool SignedInButNotConnected { get; private set; }
+
+    // Right after a QR or tap-to-approve sign-in, Steam can sit on the first
+    // logon with the new token, for example while an "unusual sign in attempt"
+    // hold is resolved in the Steam app. Seen on device: two 15s timeouts in a
+    // row after approval, then a normal 2s connect on the next app launch.
+    private static readonly int[] PostSignInRetryDelaysMs = { 5_000, 10_000, 15_000 };
     public SessionState SessionState => _state;
 
     // issue #59 — computed once per StartSession() call from the saved
@@ -107,6 +118,7 @@ public class LauncherModel : IDisposable
     // LauncherPatches statics so cloud push/pull works on all code paths.
     public FastPathResult StartSession()
     {
+        SignedInButNotConnected = false;
         OfflineMode = false;
         ConnectionResolved = false;
         _credentialStore.Load();
@@ -344,6 +356,51 @@ public class LauncherModel : IDisposable
     // Shared success tail of both login paths: persist the new token, publish
     // it to the in-game cloud patches, then verify ownership on a fresh
     // SteamConnection.
+    // Only connection timeouts are retried: an auth error from the logon
+    // (SteamAuthExpiredException, SteamLoginException) still fails at once.
+    // Each attempt gets a fresh SteamConnection, so its own reconnect backoff
+    // (a Thread.Sleep on this thread) never applies.
+    private async Task VerifyOwnershipWithRetryAsync(AuthResult result)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            _connection?.Dispose();
+            _connection = new SteamConnection(result.AccountName, result.RefreshToken);
+            try
+            {
+                await VerifyOwnershipAsync();
+                return;
+            }
+            catch (TimeoutException) when (attempt < PostSignInRetryDelaysMs.Length)
+            {
+                var delay = PostSignInRetryDelaysMs[attempt];
+                PatchHelper.Log(
+                    $"[Launcher] Post-sign-in connect timed out, retry {attempt + 1}/{PostSignInRetryDelaysMs.Length} in {delay / 1000}s"
+                );
+                LogReceived?.Invoke(
+                    Loc.Tr(
+                        $"로그인은 완료되었지만 Steam 응답이 늦습니다. {delay / 1000}초 후 다시 시도합니다 ({attempt + 1}/{PostSignInRetryDelaysMs.Length})...",
+                        $"Signed in, but Steam is slow to respond. Retrying in {delay / 1000}s ({attempt + 1}/{PostSignInRetryDelaysMs.Length})..."
+                    )
+                );
+                await Task.Delay(delay);
+            }
+            catch (TimeoutException)
+            {
+                // The login is saved; only the connection is missing. The UI
+                // offers Retry (StartSession -> AutoConnect) instead of a new
+                // sign-in.
+                SignedInButNotConnected = true;
+                throw new TimeoutException(
+                    Loc.Tr(
+                        "로그인은 완료되었지만 아직 Steam에 연결할 수 없습니다. 잠시 후 다시 시도를 눌러 주세요.",
+                        "You're signed in, but Steam isn't responding yet. Tap Retry in a moment."
+                    )
+                );
+            }
+        }
+    }
+
     private async Task CompleteLoginAsync(AuthResult result)
     {
         _credentialStore.Save(result.AccountName, result.RefreshToken, result.GuardData);
@@ -353,8 +410,7 @@ public class LauncherModel : IDisposable
         _auth?.Dispose();
         _auth = null;
 
-        _connection = new SteamConnection(result.AccountName, result.RefreshToken);
-        await VerifyOwnershipAsync();
+        await VerifyOwnershipWithRetryAsync(result);
         // issue #59 — a fresh interactive login just issued a brand-new
         // refresh token: both expiry signals reset so the auth gates
         // (BlockIfTokenExpired) reopen immediately without a restart.

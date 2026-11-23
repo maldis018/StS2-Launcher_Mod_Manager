@@ -117,6 +117,9 @@ public class SteamConnection : IDisposable
 
         _callbackManager.Subscribe<SteamClient.ConnectedCallback>(_ =>
         {
+            // Splits a connect timeout into "socket never connected" vs
+            // "logon sent, Steam never answered".
+            PatchHelper.Log("[Connection] Socket connected, logging on");
             _steamUser.LogOn(
                 new SteamUser.LogOnDetails
                 {

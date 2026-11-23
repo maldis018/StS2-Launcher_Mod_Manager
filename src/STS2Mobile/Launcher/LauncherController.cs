@@ -587,6 +587,14 @@ public class LauncherController
 
             case SessionState.Failed:
                 _model.ConnectionResolved = true;
+                if (_model.SignedInButNotConnected)
+                {
+                    // Login already saved: retry the connection with it rather
+                    // than starting a new QR or password sign-in.
+                    _view.SetStatus(_model.FailReason);
+                    _view.Actions.ShowRetry();
+                    break;
+                }
                 ShowLoginStage($"Error: {_model.FailReason}");
                 break;
 
