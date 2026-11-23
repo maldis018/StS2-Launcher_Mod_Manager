@@ -7,7 +7,7 @@
 | 파일 | 출처 | 버전 | 비고 |
 |------|------|------|------|
 | `libfmod.so`, `libfmodstudio.so` | FMOD Studio API for Android (`req_files/fmodstudioapi20313android.tar.gz`) | **2.03.13** | 게임 PC 판은 FMOD 2.3.6. **게임과 같거나 더 최신이어야 한다** — 모드 저자들이 현행 FMOD Studio 로 구운 뱅크(FEV v146)를 읽으려면 2.03+ 필요 |
-| `fmod.jar` | 위 SDK (`api/core/lib/fmod.jar`) | 2.03.13 | 실제 바이트는 upstream 것과 동일(버전 간 미변경) |
+| `fmod.jar` | 위 SDK (`api/core/lib/fmod.jar`) | 2.03.13 | ⚠️ **네이티브와 같은 SDK 버전이어야 한다.** 2.02 판에는 `FMOD.supportsSpatial()` 이 없어서 2.03 `libfmod.so` 와 섞으면 첫 프레임에 `NoSuchMethodError` 로 즉사한다(v0.5.0 사고) |
 | `libGodotFmod.android.template_{release,debug}.arm64.so` | **직접 빌드** (아래 절차) | fmod-gdextension `6.1.0-4.5.0` + FMOD 2.03.13 헤더 + 로컬 패치 | 로컬 패치: ① `_create_event_instance` / `_play_one_shot` 널 가드(issue #78 즉사 원인) ② `add_bank` 실패 시 `FMOD_ErrorString` 출력 |
 | `libspine_godot.android.template_*.arm64.so` | upstream(Ekyso) 프리빌트 그대로 | 불명(문자열 stripped) | ⚠️ **FMOD 와 같은 부류의 잠복 위험** — 게임 스켈레톤 데이터와 포맷 계약이 걸림. 현재는 정상 동작. 게임이 Spine 런타임을 올리면 같은 방식으로 깨진다 |
 | `libmonosgen-2.0.so`, `libmono-component-*.so`, `libSystem.*.so` | Godot 4.5.1 mono export templates (`req_files/Godot_v4.5.1-stable_mono_export_templates.tpz`) | .NET 9 / Godot 4.5.1 | 엔진과 짝이 맞아야 함. .NET 10 등으로 올리려면 **엔진부터** 재빌드해야 한다 |
