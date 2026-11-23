@@ -57,6 +57,16 @@ public class DepotDownloader : IDisposable
         (long Length, DateTime WriteTimeUtc, string Sha1Hex)
     > _verifiedFiles = new();
 
+    // The opposite: files that failed verification, with the length, mtime and
+    // expected hash they failed at. Each auto-resume round runs the verify pass
+    // again, and without this a corrupt or outdated ~3 GB PCK would be hashed
+    // again every round. Any change to the file (or a new expected hash)
+    // misses the cache, so a file is never trusted or condemned on stale data.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string,
+        (long Length, DateTime WriteTimeUtc, string Sha1Hex)
+    > _failedFiles = new();
+
     private readonly object _pendingLock = new();
     private PendingDownload _pending;
     private long _resumedBytes;
@@ -552,7 +562,8 @@ public class DepotDownloader : IDisposable
         var (filesToDownload, alreadyComplete) = GetFilesNeedingDownload(
             oldManifest,
             manifest,
-            isUpdate
+            isUpdate,
+            ct
         );
 
         return new DepotPlan
@@ -801,7 +812,7 @@ public class DepotDownloader : IDisposable
 
         // Verify the completed file before committing it. A mismatch here is
         // retried by the next download attempt from a clean temp file.
-        if (!VerifyFileHash(tempPath, file))
+        if (!VerifyFileHash(tempPath, file, ct))
         {
             File.Delete(tempPath);
             throw new DownloadTransientException(
@@ -882,14 +893,27 @@ public class DepotDownloader : IDisposable
     }
 
     // Computes SHA-1 of a file on disk and compares it to the manifest hash.
-    private static bool VerifyFileHash(string path, DepotManifest.FileData file) =>
-        ComputeFileSha1(path, (long)file.TotalSize) is byte[] hash
+    private static bool VerifyFileHash(
+        string path,
+        DepotManifest.FileData file,
+        CancellationToken ct = default
+    ) =>
+        ComputeFileSha1(path, (long)file.TotalSize, ct) is byte[] hash
         && hash.AsSpan().SequenceEqual(file.FileHash);
+
+    private const int HashBlockBytes = 1024 * 1024;
 
     // SHA-1 of a file, or null when it is missing, unreadable or not the
     // expected length (a size mismatch is decided without reading the file).
-    private static byte[] ComputeFileSha1(string path, long expectedLength)
+    // Hashes block by block so a pause can stop it partway through the PCK;
+    // cancellation is rethrown, never reported as "unreadable".
+    private static byte[] ComputeFileSha1(
+        string path,
+        long expectedLength,
+        CancellationToken ct = default
+    )
     {
+        byte[] block = null;
         try
         {
             var info = new FileInfo(path);
@@ -897,41 +921,84 @@ public class DepotDownloader : IDisposable
                 return null;
 
             using var fs = File.OpenRead(path);
-            return System.Security.Cryptography.SHA1.HashData(fs);
+            using var sha1 = System.Security.Cryptography.IncrementalHash.CreateHash(
+                System.Security.Cryptography.HashAlgorithmName.SHA1
+            );
+            block = System.Buffers.ArrayPool<byte>.Shared.Rent(HashBlockBytes);
+            int read;
+            while ((read = fs.Read(block, 0, HashBlockBytes)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                sha1.AppendData(block, 0, read);
+            }
+            return sha1.GetHashAndReset();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {
             return null;
         }
+        finally
+        {
+            if (block != null)
+                System.Buffers.ArrayPool<byte>.Shared.Return(block);
+        }
     }
 
-    // True when the file on disk is the manifest's version of it. Results are
-    // cached per instance by (length, mtime) so a rerun of DownloadAsync on
-    // the same instance doesn't hash the whole install again. The PCK also counts as valid when
-    // it is our own Sentry-patched copy of exactly this manifest version.
-    private bool IsFileValid(string path, DepotManifest.FileData file)
+    // True when the file on disk is the manifest's version of it. Both
+    // outcomes are cached per instance by (length, mtime, expected hash) so a
+    // retry of the same download doesn't hash the whole install again;
+    // `fromCache` says whether this answer came from that cache. The PCK also
+    // counts as valid when it is our own Sentry-patched copy of exactly this
+    // manifest version.
+    private bool IsFileValid(
+        string path,
+        DepotManifest.FileData file,
+        CancellationToken ct,
+        out bool fromCache
+    )
     {
+        fromCache = false;
         var info = new FileInfo(path);
         if (!info.Exists || info.Length != (long)file.TotalSize)
             return false;
 
-        var expected = Convert.ToHexString(file.FileHash);
-        if (
-            _verifiedFiles.TryGetValue(path, out var seen)
-            && seen.Length == info.Length
-            && seen.WriteTimeUtc == info.LastWriteTimeUtc
-            && seen.Sha1Hex == expected
-        )
+        var stamp = (
+            Length: info.Length,
+            WriteTimeUtc: info.LastWriteTimeUtc,
+            Sha1Hex: Convert.ToHexString(file.FileHash)
+        );
+        if (_verifiedFiles.TryGetValue(path, out var seen) && seen == stamp)
+        {
+            fromCache = true;
             return true;
+        }
+        if (_failedFiles.TryGetValue(path, out var failed) && failed == stamp)
+        {
+            fromCache = true;
+            return false;
+        }
 
-        var actual = ComputeFileSha1(path, (long)file.TotalSize);
+        var actual = ComputeFileSha1(path, (long)file.TotalSize, ct);
+        // Unreadable (or changed size under us): not cached, so the next pass
+        // looks at the file again.
         if (actual == null)
             return false;
 
         var actualHex = Convert.ToHexString(actual);
-        bool valid = actualHex == expected || IsOurPatchedPck(file, actualHex);
+        bool valid = actualHex == stamp.Sha1Hex || IsOurPatchedPck(file, actualHex);
         if (valid)
-            _verifiedFiles[path] = (info.Length, info.LastWriteTimeUtc, expected);
+        {
+            _verifiedFiles[path] = stamp;
+            _failedFiles.TryRemove(path, out _);
+        }
+        else
+        {
+            _failedFiles[path] = stamp;
+        }
         return valid;
     }
 
@@ -943,6 +1010,7 @@ public class DepotDownloader : IDisposable
             info.LastWriteTimeUtc,
             Convert.ToHexString(file.FileHash)
         );
+        _failedFiles.TryRemove(path, out _);
     }
 
     // Builds the list of files that need downloading and the byte count of
@@ -953,7 +1021,8 @@ public class DepotDownloader : IDisposable
     private (List<DepotManifest.FileData> Files, long AlreadyCompleteBytes) GetFilesNeedingDownload(
         DepotManifest oldManifest,
         DepotManifest newManifest,
-        bool isUpdate
+        bool isUpdate,
+        CancellationToken ct
     )
     {
         var oldFiles = oldManifest?.Files.ToDictionary(f => f.FileName);
@@ -961,9 +1030,12 @@ public class DepotDownloader : IDisposable
         long alreadyComplete = 0;
         int verified = 0;
         int corrupt = 0;
+        int cached = 0;
 
         foreach (var file in newManifest.Files)
         {
+            // Hashing the install can take a while; let a pause stop it.
+            ct.ThrowIfCancellationRequested();
             if (file.Flags.HasFlag(EDepotFileFlag.Directory))
                 continue;
 
@@ -982,7 +1054,10 @@ public class DepotDownloader : IDisposable
                 );
 
             var filePath = Path.Combine(_gameDir, file.FileName.Replace('\\', '/'));
-            if (IsFileValid(filePath, file))
+            bool valid = IsFileValid(filePath, file, ct, out bool fromCache);
+            if (fromCache)
+                cached++;
+            if (valid)
             {
                 verified++;
                 if (partOfUpdate)
@@ -1002,6 +1077,8 @@ public class DepotDownloader : IDisposable
             Log($"Verified {verified} existing files");
         if (corrupt > 0)
             Log($"Found {corrupt} corrupt files requiring re-download");
+        if (cached > 0)
+            Log($"Reused {cached} hash results from an earlier attempt");
 
         return (result, alreadyComplete);
     }
