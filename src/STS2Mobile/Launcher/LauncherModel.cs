@@ -88,6 +88,13 @@ public class LauncherModel : IDisposable
     public event Action DownloadCompleted;
     public event Action<string> DownloadFailed;
     public event Action DownloadCancelled;
+
+    // A single request is being retried (attempt counts from 1).
+    public event Action<DownloadRetryInfo> DownloadRetrying;
+
+    // The whole download is waiting before automatic resume round `round`;
+    // `secondsLeft` counts down to 0, which means "resuming now".
+    public event Action<int, int> DownloadWaitingForNetwork;
     public event Action<bool> UpdateCheckCompleted;
     public event Action<string> UpdateCheckFailed;
 
@@ -455,17 +462,41 @@ public class LauncherModel : IDisposable
         _downloader = new DepotDownloader(_connection, _dataDir);
         _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
         _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
+        _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
 
         _downloadCts = new CancellationTokenSource();
+        var token = _downloadCts.Token;
         var resolvedBranch = branch ?? LoadSelectedBranch();
 
         try
         {
-            await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, _downloadCts.Token));
+            // When the network is gone long enough for a request to exhaust its
+            // own retries, wait and run the whole download again instead of
+            // failing. That is cheap: DepotDownloader keeps verified files and
+            // partial chunks, so each round only fetches what is still missing.
+            for (int round = 0; ; round++)
+            {
+                try
+                {
+                    await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, token));
+                    break;
+                }
+                catch (Exception ex)
+                    when (round < AutoResumeDelays.Length && DownloadResilience.IsTransient(ex, token))
+                {
+                    var delay = AutoResumeDelays[round];
+                    PatchHelper.Log(
+                        $"[Launcher] Download interrupted ({ex.Message}); auto-resume {round + 1}/{AutoResumeDelays.Length} in {delay.TotalSeconds:F0}s"
+                    );
+                    DownloadLogReceived?.Invoke($"Download interrupted: {ex.Message}");
+                    await WaitBeforeAutoResumeAsync(round + 1, delay, token);
+                }
+            }
+
             WriteCacheStampAfterDownload(resolvedBranch, _downloader.LastDownloadedBuildId);
             DownloadCompleted?.Invoke();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             DownloadCancelled?.Invoke();
         }
@@ -474,6 +505,33 @@ public class LauncherModel : IDisposable
             DownloadFailed?.Invoke(ex.Message);
             PatchHelper.Log($"[Launcher] Download error: {ex}");
         }
+    }
+
+    // Waits between automatic resume rounds: 15 s, 30 s, 1, 2, then 5 minutes
+    // three times, about 19 minutes in all before the download is reported as
+    // failed (the user can still resume by hand after that).
+    private static readonly TimeSpan[] AutoResumeDelays =
+    {
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromSeconds(60),
+        TimeSpan.FromSeconds(120),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(5),
+    };
+
+    public static int MaxAutoResumeRounds => AutoResumeDelays.Length;
+
+    // Ticks once per second so the UI can show a countdown.
+    private async Task WaitBeforeAutoResumeAsync(int round, TimeSpan delay, CancellationToken ct)
+    {
+        for (int left = (int)delay.TotalSeconds; left > 0; left--)
+        {
+            DownloadWaitingForNetwork?.Invoke(round, left);
+            await Task.Delay(1000, ct);
+        }
+        DownloadWaitingForNetwork?.Invoke(round, 0);
     }
 
     // Reads the just-downloaded release_info.json and writes a CacheStamp.

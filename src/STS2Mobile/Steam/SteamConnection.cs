@@ -47,6 +47,23 @@ public enum WorkshopQuerySort : uint
 //   Draining → Idle         : Pending RPCs complete
 //   Backoff → Connecting    : Backoff expires, work pending
 //   Backoff → Idle          : Backoff expires, no work pending
+// The saved refresh token itself is no longer usable (see IsAuthFailure).
+// Retrying won't help; the user has to log in again. Subclasses
+// InvalidOperationException so existing catch sites behave as before.
+public class SteamAuthExpiredException : InvalidOperationException
+{
+    public SteamAuthExpiredException(string message)
+        : base(message) { }
+}
+
+// Any other logon failure (TryAnotherCM, ServiceUnavailable, Timeout...):
+// usually a transient network or Steam-side problem worth retrying.
+public class SteamLoginException : InvalidOperationException
+{
+    public SteamLoginException(string message)
+        : base(message) { }
+}
+
 public class SteamConnection : IDisposable
 {
     private const int MaxBackoffMs = 32_000;
@@ -154,10 +171,10 @@ public class SteamConnection : IDisposable
             // message — we must not reclassify a network hiccup as an auth
             // problem and send the user down a re-login path for nothing.
             _connectError = IsAuthFailure(cb.Result)
-                ? new InvalidOperationException(
+                ? new SteamAuthExpiredException(
                     Loc.Tr("Steam 로그인이 만료되었거나 취소되었습니다. 다시 로그인해 주세요.", "Your Steam login expired or was canceled. Please log in again.")
                 )
-                : new InvalidOperationException($"Login failed: {cb.Result}");
+                : new SteamLoginException($"Login failed: {cb.Result}");
             _connectedGate.Set();
         });
     }

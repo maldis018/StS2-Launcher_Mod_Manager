@@ -28,6 +28,9 @@ public class LauncherController
     // 로 마킹, DownloadCompleted 콜백에서 소비. true 였다면 NeedsRestartAfterBranchSwitch
     // set → Play 버튼이 Loc.Tr("앱 재시작 필요", "App restart required") 로 분기됨.
     private bool _pendingBranchSwitch;
+    // Set while an interrupted download waits to auto-resume; cleared on the
+    // first progress event after it continues.
+    private bool _downloadInterrupted;
 
     // Reentrancy guard shared by every handler that touches local saves or
     // Steam Cloud (Save Manager, Local Backup, Push, Pull) — all of them
@@ -106,6 +109,11 @@ public class LauncherController
         _model.DownloadProgressChanged += p =>
             _runOnMainThread(() =>
             {
+                if (_downloadInterrupted && p.DownloadedBytes > 0)
+                {
+                    _downloadInterrupted = false;
+                    _view.SetStatus(Loc.Tr("다운로드 중...", "Downloading..."));
+                }
                 _view.Download.SetProgress(
                     p.Percentage,
                     $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)"
@@ -169,6 +177,19 @@ public class LauncherController
             {
                 _view.SetStatus("Download cancelled");
                 _view.Download.SetButtonDisabled(false);
+            });
+        _model.DownloadWaitingForNetwork += (round, secondsLeft) =>
+            _runOnMainThread(() =>
+            {
+                _downloadInterrupted = true;
+                _view.SetStatus(
+                    secondsLeft > 0
+                        ? Loc.Tr(
+                            $"네트워크 연결을 기다리는 중... {secondsLeft}초 후 재시도 ({round}/{LauncherModel.MaxAutoResumeRounds})",
+                            $"Waiting for network... retrying in {secondsLeft}s ({round}/{LauncherModel.MaxAutoResumeRounds})"
+                        )
+                        : Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...")
+                );
             });
         _model.UpdateCheckCompleted += hasUpdate =>
             _runOnMainThread(() =>
