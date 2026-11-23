@@ -93,16 +93,21 @@ public class DownloadService extends Service {
 		String text = intent != null ? intent.getStringExtra(EXTRA_TEXT) : null;
 		if (title != null) currentTitle = title;
 
-		ensureChannel(this);
-		Notification notification = buildNotification(this, currentTitle, text, -1);
-		try {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-				startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-			} else {
-				startForeground(NOTIFICATION_ID, notification);
+		Notification notification = buildStartNotification(text);
+		if (!enterForeground(notification)) {
+			// Both startForeground() variants were refused (for example the
+			// Android 15 dataSync daily quota is used up). They were tried
+			// before this stop on purpose: stopping a service that was started
+			// with startForegroundService() without ever calling
+			// startForeground() can crash the app on some versions. The
+			// download keeps running unprotected and resumes on the next
+			// launch if the process is frozen or killed.
+			Log.w(TAG, "startForeground refused; stopping service");
+			try {
+				stopForeground(STOP_FOREGROUND_REMOVE);
+			} catch (Exception e) {
+				Log.w(TAG, "stopForeground failed", e);
 			}
-		} catch (Exception e) {
-			Log.w(TAG, "startForeground failed; stopping service", e);
 			stopSelf();
 			return START_NOT_STICKY;
 		}
@@ -110,6 +115,51 @@ public class DownloadService extends Service {
 		running = true;
 		acquireLocks();
 		return START_NOT_STICKY;
+	}
+
+	// Builds the foreground notification, falling back to a bare one if the
+	// normal build throws. startForeground() needs some notification, and a
+	// failed build must not skip it.
+	private Notification buildStartNotification(String text) {
+		try {
+			ensureChannel(this);
+			return buildNotification(this, currentTitle, text, -1);
+		} catch (Exception e) {
+			Log.w(TAG, "Could not build download notification; using a minimal one", e);
+			return buildMinimalNotification();
+		}
+	}
+
+	@SuppressWarnings("deprecation")
+	private Notification buildMinimalNotification() {
+		Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+				? new Notification.Builder(this, CHANNEL_ID)
+				: new Notification.Builder(this);
+		return b.setSmallIcon(android.R.drawable.stat_sys_download)
+				.setContentTitle(currentTitle)
+				.setOngoing(true)
+				.build();
+	}
+
+	// Tries the typed startForeground() first, then the untyped one (which
+	// uses the type declared in the manifest). Returns false only when both
+	// were refused.
+	private boolean enterForeground(Notification notification) {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			try {
+				startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+				return true;
+			} catch (Exception e) {
+				Log.w(TAG, "Typed startForeground failed; retrying untyped", e);
+			}
+		}
+		try {
+			startForeground(NOTIFICATION_ID, notification);
+			return true;
+		} catch (Exception e) {
+			Log.w(TAG, "startForeground failed", e);
+			return false;
+		}
 	}
 
 	// Android 15+: dataSync foreground services get about 6 hours per day.
