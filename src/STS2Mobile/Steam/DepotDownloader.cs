@@ -251,7 +251,10 @@ public class DepotDownloader : IDisposable
                         ? started
                         : DateTime.UtcNow,
                 };
-                WritePendingMarker(force: true);
+                // The marker must exist before the first file changes, so a
+                // failure to write it stops the download. It is a storage
+                // problem (full or read-only data dir), not a network one.
+                Storage(PendingMarkerLabel, () => WritePendingMarker(force: true));
             }
 
             DeleteOrphanedTempFiles(plans);
@@ -859,7 +862,21 @@ public class DepotDownloader : IDisposable
                 ex
             );
         }
+        // Permission denied (for example a data dir the app can no longer
+        // write to). Not an IOException, and retrying can't fix it either.
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new DownloadFatalException(
+                Loc.Tr(
+                    $"{fileName} 저장 실패: {ex.Message}. 앱의 저장소 쓰기 권한을 확인한 뒤 다시 시도하세요.",
+                    $"Couldn't save {fileName}: {ex.Message}. Check that the app can write to its storage, then try again."
+                ),
+                ex
+            );
+        }
     }
+
+    private const string PendingMarkerLabel = "download_state/pending.json";
 
     // Reads the chunk's region from a partial file and checks it against the
     // manifest SHA-1. Chunks without a ChunkID can't be proven correct, so they
