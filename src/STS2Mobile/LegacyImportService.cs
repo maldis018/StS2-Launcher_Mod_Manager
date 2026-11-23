@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using Godot;
 
 namespace STS2Mobile;
@@ -21,6 +22,10 @@ namespace STS2Mobile;
 //     both enabled and disabled.
 //   - Saves: one backup set (Saves/manual/<ts>, Saves/auto/<ts>).
 //   - Config: one file.
+//
+// One exception to "never overwrite": Mods/mod_config.json. The launcher writes
+// an empty one on every start, so it always exists by the time the import runs.
+// It is replaced only while it still lists no mods (an untouched default).
 public static class LegacyImportService
 {
     public const string LegacyRoot = "/storage/emulated/0/StS2LauncherMM";
@@ -38,6 +43,9 @@ public static class LegacyImportService
         public string Source;
         public string Dest;
         public bool IsDirectory;
+
+        // Dest is an app-generated empty mod_config.json that may be replaced.
+        public bool ReplaceEmptyModConfig;
     }
 
     public class Plan
@@ -183,9 +191,26 @@ public static class LegacyImportService
             var name = Path.GetFileName(file);
             if (name.StartsWith('.'))
                 continue;
+            var dest = Path.Combine(dstRoot, name);
             if (category == "Mods" && name == Path.GetFileName(AppPaths.ExternalModConfigFile))
+            {
                 plan.HasModConfig = true;
-            Classify(plan, category, name, file, Path.Combine(dstRoot, name), false);
+                if (IsEmptyModConfig(dest) && !IsEmptyModConfig(file))
+                {
+                    plan.ToCopy.Add(
+                        new Unit
+                        {
+                            Category = category,
+                            Name = name,
+                            Source = file,
+                            Dest = dest,
+                            ReplaceEmptyModConfig = true,
+                        }
+                    );
+                    continue;
+                }
+            }
+            Classify(plan, category, name, file, dest, false);
         }
     }
 
@@ -221,7 +246,7 @@ public static class LegacyImportService
         {
             // Re-check right before copying: never overwrite, even if something
             // appeared since the plan was built.
-            if (Exists(unit.Dest))
+            if (Exists(unit.Dest) && !(unit.ReplaceEmptyModConfig && IsEmptyModConfig(unit.Dest)))
             {
                 result.Skipped++;
                 continue;
@@ -245,7 +270,7 @@ public static class LegacyImportService
                     File.Copy(unit.Source, temp, overwrite: false);
                     bytes = new FileInfo(temp).Length;
                     files = 1;
-                    File.Move(temp, unit.Dest, overwrite: false);
+                    File.Move(temp, unit.Dest, overwrite: unit.ReplaceEmptyModConfig);
                 }
                 result.Copied++;
                 result.FileCount += files;
@@ -293,6 +318,25 @@ public static class LegacyImportService
                 File.Delete(path);
         }
         catch { }
+    }
+
+    // True when the file is missing or is a mod_config.json with no mod entries.
+    // Unreadable or malformed counts as NOT empty, so it is never replaced.
+    private static bool IsEmptyModConfig(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return true;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.TryGetProperty("mods", out var mods)
+                && mods.ValueKind == JsonValueKind.Array
+                && mods.GetArrayLength() == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool Exists(string path) => Directory.Exists(path) || File.Exists(path);

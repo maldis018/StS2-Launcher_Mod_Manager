@@ -172,9 +172,30 @@ public class LauncherUI : Control
     // alive" and "main loop wedged" in the next capture.
     private ulong _lastHeartbeatMsec;
 
+    // Set while All Files Access is missing. The grant happens on a system
+    // settings page, and no APPLICATION_RESUMED/FOCUS_IN notification reaches
+    // the node tree on return (checked on a OnePlus/ColorOS device), so poll
+    // once a second until it's granted, then create the external tree and
+    // offer the legacy-folder import.
+    private bool _awaitingStoragePermission = true;
+    private ulong _lastPermissionPollMsec;
+
+    private void PollStoragePermission(ulong nowMsec)
+    {
+        if (!_awaitingStoragePermission || nowMsec - _lastPermissionPollMsec < 1000)
+            return;
+        _lastPermissionPollMsec = nowMsec;
+        if (!AppPaths.HasStoragePermission())
+            return;
+        _awaitingStoragePermission = false;
+        AppPaths.EnsureExternalDirectories();
+        _controller?.OfferLegacyImportIfNeeded();
+    }
+
     private void OnProcessFrame()
     {
         var nowMsec = Time.GetTicksMsec();
+        PollStoragePermission(nowMsec);
         if (nowMsec - _lastHeartbeatMsec >= 30_000)
         {
             _lastHeartbeatMsec = nowMsec;
@@ -282,14 +303,6 @@ public class LauncherUI : Control
 
     public override void _Notification(int what)
     {
-        if (what == NotificationApplicationResumed)
-        {
-            // Back from the All Files Access settings page: create the external
-            // tree and offer the legacy-folder import now that we can read it.
-            AppPaths.EnsureExternalDirectories();
-            _controller?.OfferLegacyImportIfNeeded();
-            return;
-        }
         if (what != NotificationWMGoBackRequest)
             return;
 

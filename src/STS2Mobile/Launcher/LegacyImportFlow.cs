@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Godot;
@@ -128,16 +129,42 @@ public static class LegacyImportFlow
                 "Import from StS2 Launcher Mod?\n\n"
             )
         );
+        // Only name what is actually there (e.g. no "0 mod(s)").
+        var ko = new List<string>();
+        var en = new List<string>();
+        if (plan.ModCount > 0)
+        {
+            ko.Add($"모드 {plan.ModCount}개");
+            en.Add($"{plan.ModCount} mod(s)");
+        }
+        if (plan.DisabledModCount > 0)
+        {
+            ko.Add($"비활성 모드 {plan.DisabledModCount}개");
+            en.Add($"{plan.DisabledModCount} disabled mod(s)");
+        }
+        if (plan.HasModConfig)
+        {
+            ko.Add("모드 설정 (mod_config.json)");
+            en.Add("your mod settings (mod_config.json)");
+        }
+        if (plan.BackupSetCount > 0)
+        {
+            ko.Add($"로컬 백업 {plan.BackupSetCount}개");
+            en.Add($"{plan.BackupSetCount} Local Backup set(s)");
+        }
+        if (plan.ConfigFileCount > 0)
+        {
+            ko.Add("LAN 설정");
+            en.Add("the LAN config");
+        }
         sb.Append(
             Loc.Tr(
                 $"이전 앱의 폴더({LegacyImportService.LegacyRoot})를 찾았습니다. "
-                    + $"모드 {plan.ModCount}개, 비활성 모드 {plan.DisabledModCount}개, "
-                    + $"로컬 백업 {plan.BackupSetCount}개, LAN 설정을 새 폴더로 복사합니다. "
-                    + "이전 폴더는 그대로 두며, 새 폴더에 이미 있는 항목은 덮어쓰지 않습니다.\n\n",
+                    + $"{string.Join(", ", ko)}을(를) 새 폴더로 복사합니다. "
+                    + "이전 폴더는 그대로 두며, 새 폴더에 이미 있는 내 항목은 덮어쓰지 않습니다.\n\n",
                 $"Found the old app's folder ({LegacyImportService.LegacyRoot}). "
-                    + $"This copies {plan.ModCount} mod(s), {plan.DisabledModCount} disabled mod(s), "
-                    + $"{plan.BackupSetCount} Local Backup set(s) and the LAN config into the new folder. "
-                    + "The old folder is left as it is, and nothing already in the new folder is overwritten.\n\n"
+                    + $"This copies {JoinEnglish(en)} into the new folder. "
+                    + "The old folder is left as it is, and nothing you already have in the new folder is overwritten.\n\n"
             )
         );
         sb.Append(
@@ -168,6 +195,15 @@ public static class LegacyImportFlow
         );
         return sb.ToString();
     }
+
+    private static string JoinEnglish(List<string> items) =>
+        items.Count switch
+        {
+            0 => "nothing",
+            1 => items[0],
+            2 => $"{items[0]} and {items[1]}",
+            _ => string.Join(", ", items.GetRange(0, items.Count - 1)) + " and " + items[^1],
+        };
 
     private static string BuildResultMessage(LegacyImportService.Result r)
     {

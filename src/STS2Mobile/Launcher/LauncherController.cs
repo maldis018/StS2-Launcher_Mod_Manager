@@ -329,8 +329,8 @@ public class LauncherController
     }
 
     // One-time offer to copy mods/backups/config from the old StS2LauncherMM
-    // folder. Also called on app resume, so it fires right after the user grants
-    // All Files Access from the system settings page.
+    // folder. LauncherUI also calls it once All Files Access turns up, so it fires
+    // right after the user grants it from the system settings page.
     public void OfferLegacyImportIfNeeded() =>
         LegacyImportFlow.MaybeOfferOnStartup(_view.RootControl, _view.Scale);
 
