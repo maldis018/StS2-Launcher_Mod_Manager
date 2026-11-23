@@ -27,6 +27,10 @@ public class LauncherModel : IDisposable
     private CancellationTokenSource _qrCts;
     private DepotDownloader _downloader;
     private CancellationTokenSource _downloadCts;
+
+    // Highest DownloadedBytes the current download has reported in any
+    // auto-resume round (updated from download worker threads).
+    private long _downloadPeakBytes;
     private TaskCompletionSource<bool> _launchTcs;
     private TaskCompletionSource<string> _codeTcs;
     private SessionState _state = SessionState.Disconnected;
@@ -461,8 +465,13 @@ public class LauncherModel : IDisposable
         _downloader?.Dispose();
         _downloader = new DepotDownloader(_connection, _dataDir);
         _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
-        _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
+        _downloader.ProgressChanged += p =>
+        {
+            RaiseDownloadPeak(Interlocked.Read(ref p.DownloadedBytes));
+            DownloadProgressChanged?.Invoke(p);
+        };
         _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
+        Interlocked.Exchange(ref _downloadPeakBytes, 0);
 
         _downloadCts = new CancellationTokenSource();
         var token = _downloadCts.Token;
@@ -474,22 +483,43 @@ public class LauncherModel : IDisposable
             // own retries, wait and run the whole download again instead of
             // failing. That is cheap: DepotDownloader keeps verified files and
             // partial chunks, so each round only fetches what is still missing.
-            for (int round = 0; ; round++)
+            //
+            // `round` counts consecutive rounds that fetched nothing new, so the
+            // cap only ends a download that is truly stuck; a flaky connection
+            // that keeps making progress keeps going. A round made progress when
+            // DownloadedBytes went past the highest value any earlier round
+            // reached (re-counting resumed chunks only gets back to it).
+            int round = 0;
+            long progressMark = 0;
+            while (true)
             {
                 try
                 {
                     await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, token));
                     break;
                 }
-                catch (Exception ex)
-                    when (round < AutoResumeDelays.Length && DownloadResilience.IsTransient(ex, token))
+                catch (Exception ex) when (DownloadResilience.IsTransient(ex, token))
                 {
+                    long peak = Interlocked.Read(ref _downloadPeakBytes);
+                    if (peak > progressMark)
+                    {
+                        if (round > 0)
+                            PatchHelper.Log(
+                                $"[Launcher] Download made progress ({FormatSize(peak)}); auto-resume count reset"
+                            );
+                        round = 0;
+                        progressMark = peak;
+                    }
+                    if (round >= AutoResumeDelays.Length)
+                        throw;
+
                     var delay = AutoResumeDelays[round];
                     PatchHelper.Log(
                         $"[Launcher] Download interrupted ({ex.Message}); auto-resume {round + 1}/{AutoResumeDelays.Length} in {delay.TotalSeconds:F0}s"
                     );
                     DownloadLogReceived?.Invoke($"Download interrupted: {ex.Message}");
                     await WaitBeforeAutoResumeAsync(round + 1, delay, token);
+                    round++;
                 }
             }
 
@@ -507,9 +537,21 @@ public class LauncherModel : IDisposable
         }
     }
 
+    private void RaiseDownloadPeak(long bytes)
+    {
+        long seen = Interlocked.Read(ref _downloadPeakBytes);
+        while (bytes > seen)
+        {
+            long prev = Interlocked.CompareExchange(ref _downloadPeakBytes, bytes, seen);
+            if (prev == seen)
+                return;
+            seen = prev;
+        }
+    }
+
     // Waits between automatic resume rounds: 15 s, 30 s, 1, 2, then 5 minutes
-    // three times, about 19 minutes in all before the download is reported as
-    // failed (the user can still resume by hand after that).
+    // three times, about 19 minutes without progress before the download is
+    // reported as failed (the user can still resume by hand after that).
     private static readonly TimeSpan[] AutoResumeDelays =
     {
         TimeSpan.FromSeconds(15),
