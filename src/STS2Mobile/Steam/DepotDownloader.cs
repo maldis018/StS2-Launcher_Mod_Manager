@@ -52,6 +52,14 @@ public class DepotDownloader : IDisposable
     private const string TempSuffix = ".downloading";
     private const long FlushIntervalBytes = 32L * 1024 * 1024;
 
+    // Seed changed files from the version already on disk: any chunk whose
+    // SHA-1 matches the new manifest is copied locally instead of downloaded.
+    // A small game patch then fetches only the changed parts of the ~3 GB PCK.
+    // Every copied chunk is hash-checked and the finished file is verified as a
+    // whole, so the result is identical to a full download. Branch switches are
+    // unaffected (they wipe the game directory first). Set to false to disable.
+    private const bool ReuseLocalChunks = true;
+
     // ProgressChanged fires at most this often (it used to fire per chunk,
     // flooding the UI thread and the log). Phase changes always fire.
     private const long ProgressIntervalMs = 250;
@@ -88,6 +96,7 @@ public class DepotDownloader : IDisposable
     private readonly object _pendingLock = new();
     private PendingDownload _pending;
     private long _resumedBytes;
+    private long _reusedBytes;
     private long _lastProgressTick;
 
     // Chunk bytes fetched from the CDN and written to a partial file by this
@@ -250,6 +259,7 @@ public class DepotDownloader : IDisposable
                 alreadyDone + plans.Sum(p => p.FilesToDownload.Sum(f => (long)f.TotalSize));
             _progress.DownloadedBytes = alreadyDone;
             _resumedBytes = 0;
+            _reusedBytes = 0;
             SetPhase(DownloadPhase.Downloading);
 
             bool changesFiles = plans.Any(p =>
@@ -291,6 +301,8 @@ public class DepotDownloader : IDisposable
             Log("All game files downloaded!");
             if (_resumedBytes > 0)
                 Log($"Resumed {FormatSize(_resumedBytes)} from partial files");
+            if (_reusedBytes > 0)
+                Log($"Reused {FormatSize(_reusedBytes)} from installed files instead of downloading");
 
             // Remove Sentry plugin references (no android.arm64 build exists),
             // then record the patched hash so later verification passes accept
@@ -569,6 +581,10 @@ public class DepotDownloader : IDisposable
         public List<DepotManifest.FileData> FilesToDownload;
         public List<string> FilesToDelete;
         public long AlreadyCompleteBytes;
+
+        // The installed manifest's entries by file name (empty on a fresh
+        // install), used to find reusable chunks in the installed file.
+        public Dictionary<string, DepotManifest.FileData> OldFiles;
     }
 
     private async Task<DepotPlan> PrepareDepotAsync(
@@ -607,6 +623,9 @@ public class DepotDownloader : IDisposable
             FilesToDownload = filesToDownload,
             FilesToDelete = GetFilesToDelete(oldManifest, manifest),
             AlreadyCompleteBytes = alreadyComplete,
+            OldFiles =
+                oldManifest?.Files.ToDictionary(f => f.FileName)
+                ?? new Dictionary<string, DepotManifest.FileData>(),
         };
     }
 
@@ -657,7 +676,14 @@ public class DepotDownloader : IDisposable
                     {
                         try
                         {
-                            await DownloadFileAsync(file, plan.DepotId, plan.DepotKey, workers.Token);
+                            plan.OldFiles.TryGetValue(file.FileName, out var oldFile);
+                            await DownloadFileAsync(
+                                file,
+                                oldFile,
+                                plan.DepotId,
+                                plan.DepotKey,
+                                workers.Token
+                            );
                             Interlocked.Increment(ref _progress.CompletedFiles);
                             ReportProgress();
                         }
@@ -729,6 +755,7 @@ public class DepotDownloader : IDisposable
 
     private async Task DownloadFileAsync(
         DepotManifest.FileData file,
+        DepotManifest.FileData oldFile,
         uint depotId,
         byte[] depotKey,
         CancellationToken ct
@@ -760,6 +787,8 @@ public class DepotDownloader : IDisposable
         var tempPath = filePath + TempSuffix;
         bool resuming = File.Exists(tempPath);
         long resumedHere = 0;
+        long reusedHere = 0;
+        var local = OpenLocalChunkSource(filePath, oldFile);
 
         var fs = Storage(
             fileName,
@@ -786,6 +815,7 @@ public class DepotDownloader : IDisposable
         );
 
         using (fs)
+        using (local.Stream)
         {
             long unflushed = 0;
             foreach (var chunk in file.Chunks.OrderBy(c => c.Offset))
@@ -794,9 +824,31 @@ public class DepotDownloader : IDisposable
 
                 var buffer = new byte[chunk.UncompressedLength];
 
-                if (resuming && TryReadValidChunk(fs, chunk, buffer))
+                if (resuming && TryReadChunkAt(fs, (long)chunk.Offset, chunk, buffer))
                 {
                     resumedHere += chunk.UncompressedLength;
+                    Interlocked.Add(ref _progress.DownloadedBytes, chunk.UncompressedLength);
+                    ReportProgress();
+                    continue;
+                }
+
+                if (TryReadLocalChunk(local, chunk, buffer))
+                {
+                    Storage(
+                        fileName,
+                        () =>
+                        {
+                            fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+                            fs.Write(buffer, 0, (int)chunk.UncompressedLength);
+                        }
+                    );
+                    reusedHere += chunk.UncompressedLength;
+                    unflushed += chunk.UncompressedLength;
+                    if (unflushed >= FlushIntervalBytes)
+                    {
+                        Storage(fileName, () => fs.Flush(flushToDisk: true));
+                        unflushed = 0;
+                    }
                     Interlocked.Add(ref _progress.DownloadedBytes, chunk.UncompressedLength);
                     ReportProgress();
                     continue;
@@ -841,6 +893,11 @@ public class DepotDownloader : IDisposable
         {
             Interlocked.Add(ref _resumedBytes, resumedHere);
             Log($"Resumed {FormatSize(resumedHere)} of {fileName} from partial download");
+        }
+        if (reusedHere > 0)
+        {
+            Interlocked.Add(ref _reusedBytes, reusedHere);
+            Log($"Reused {FormatSize(reusedHere)} of {fileName} from the installed version");
         }
 
         // Verify the completed file before committing it. A mismatch here is
@@ -902,23 +959,24 @@ public class DepotDownloader : IDisposable
 
     private const string PendingMarkerLabel = "download_state/pending.json";
 
-    // Reads the chunk's region from a partial file and checks it against the
-    // manifest SHA-1. Chunks without a ChunkID can't be proven correct, so they
-    // are always downloaded again.
-    private static bool TryReadValidChunk(
+    // Reads `chunk.UncompressedLength` bytes at `offset` and checks them
+    // against the chunk's manifest SHA-1. Chunks without a ChunkID can't be
+    // proven correct, so they are always downloaded again.
+    private static bool TryReadChunkAt(
         FileStream fs,
+        long offset,
         DepotManifest.ChunkData chunk,
         byte[] buffer
     )
     {
         if (chunk.ChunkID == null || chunk.ChunkID.Length == 0)
             return false;
-        if ((long)chunk.Offset + chunk.UncompressedLength > fs.Length)
+        if (offset < 0 || offset + chunk.UncompressedLength > fs.Length)
             return false;
 
         try
         {
-            fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+            fs.Seek(offset, SeekOrigin.Begin);
             fs.ReadExactly(buffer, 0, (int)chunk.UncompressedLength);
         }
         catch (EndOfStreamException)
@@ -927,6 +985,79 @@ public class DepotDownloader : IDisposable
         }
 
         return VerifyChunkHash(buffer, (int)chunk.UncompressedLength, chunk);
+    }
+
+    // The installed copy of a file being replaced, plus where each of its
+    // chunks lives according to the installed manifest.
+    private readonly struct LocalChunkSource
+    {
+        public readonly FileStream Stream;
+        public readonly Dictionary<string, ulong> OldOffsets;
+
+        public LocalChunkSource(FileStream stream, Dictionary<string, ulong> oldOffsets)
+        {
+            Stream = stream;
+            OldOffsets = oldOffsets;
+        }
+    }
+
+    private LocalChunkSource OpenLocalChunkSource(string filePath, DepotManifest.FileData oldFile)
+    {
+        if (!ReuseLocalChunks || !File.Exists(filePath))
+            return default;
+
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (IOException ex)
+        {
+            Log($"Can't read installed {Path.GetFileName(filePath)} for chunk reuse: {ex.Message}");
+            return default;
+        }
+
+        Dictionary<string, ulong> offsets = null;
+        if (oldFile != null)
+        {
+            offsets = new Dictionary<string, ulong>();
+            foreach (var c in oldFile.Chunks)
+            {
+                if (c.ChunkID != null && c.ChunkID.Length > 0)
+                    offsets.TryAdd(Convert.ToHexString(c.ChunkID), c.Offset);
+            }
+        }
+        return new LocalChunkSource(stream, offsets);
+    }
+
+    // Looks for the chunk in the installed file: first where the installed
+    // manifest says that chunk is (content that moved), then at the chunk's
+    // new offset (content that stayed put, or no installed manifest).
+    private static bool TryReadLocalChunk(
+        LocalChunkSource local,
+        DepotManifest.ChunkData chunk,
+        byte[] buffer
+    )
+    {
+        if (local.Stream == null || chunk.ChunkID == null || chunk.ChunkID.Length == 0)
+            return false;
+
+        try
+        {
+            if (
+                local.OldOffsets != null
+                && local.OldOffsets.TryGetValue(Convert.ToHexString(chunk.ChunkID), out var oldOffset)
+                && TryReadChunkAt(local.Stream, (long)oldOffset, chunk, buffer)
+            )
+                return true;
+
+            return TryReadChunkAt(local.Stream, (long)chunk.Offset, chunk, buffer);
+        }
+        catch (IOException)
+        {
+            // Reuse is an optimization; a read error just means download it.
+            return false;
+        }
     }
 
     // Computes SHA-1 of a decompressed chunk and compares it to the manifest ChunkID.
