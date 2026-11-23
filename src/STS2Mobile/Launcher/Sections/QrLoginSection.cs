@@ -62,7 +62,10 @@ public class QrLoginSection : VBoxContainer
         thisPhoneButton.Pressed += () => PasswordLoginRequested?.Invoke();
         side.AddChild(thisPhoneButton);
 
-        ShowStarting();
+        // No ShowStarting() here: it makes the section visible, and on the
+        // saved-login fast path (ReadyToLaunch) nothing hides it again, so
+        // "Preparing sign-in code..." sat under "Welcome back". The section
+        // stays hidden until StartQrLogin() shows it.
     }
 
     // Waiting for Steam to issue the first challenge.
