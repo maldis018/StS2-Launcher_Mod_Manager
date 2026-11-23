@@ -125,7 +125,7 @@ public static class LegacyImportFlow
         var sb = new StringBuilder();
         sb.Append(
             Loc.Tr(
-                "StS2 Launcher Mod 에서 가져올까요?\n\n",
+                "StS2 Launcher Mod에서 가져올까요?\n\n",
                 "Import from StS2 Launcher Mod?\n\n"
             )
         );
@@ -160,7 +160,7 @@ public static class LegacyImportFlow
         sb.Append(
             Loc.Tr(
                 $"이전 앱의 폴더({LegacyImportService.LegacyRoot})를 찾았습니다. "
-                    + $"{string.Join(", ", ko)}을(를) 새 폴더로 복사합니다. "
+                    + $"다음 항목을 새 폴더로 복사합니다: {string.Join(", ", ko)}. "
                     + "이전 폴더는 그대로 두며, 새 폴더에 이미 있는 내 항목은 덮어쓰지 않습니다.\n\n",
                 $"Found the old app's folder ({LegacyImportService.LegacyRoot}). "
                     + $"This copies {JoinEnglish(en)} into the new folder. "
@@ -171,7 +171,7 @@ public static class LegacyImportFlow
             Loc.Tr(
                 "가져올 수 없는 것: 이전 앱의 내부 데이터(Steam 로그인, 약 3GB 게임 파일, 현재 세이브)는 이 앱에서 접근할 수 없습니다. "
                     + "여기서 다시 로그인하고 게임을 다시 받으세요. 세이브는 Steam 클라우드에서 돌아오며, "
-                    + "클라우드를 쓰지 않았다면 이전 앱에서 Local Backup 을 먼저 만든 뒤 이 가져오기를 다시 실행하세요.",
+                    + "클라우드를 쓰지 않았다면 이전 앱에서 로컬 백업을 먼저 만든 뒤 이 가져오기를 다시 실행하세요.",
                 "What can't come over: the old app's private data (your Steam login, the ~3 GB of game files "
                     + "and your live saves) is out of this app's reach. Sign in again and re-download the game here. "
                     + "Your saves come back from Steam Cloud. If you didn't use Steam Cloud, make a Local Backup "
@@ -189,7 +189,7 @@ public static class LegacyImportFlow
         }
         sb.Append(
             Loc.Tr(
-                "\n\n나중에 MOD MANAGER > LOCAL 에서 다시 실행할 수 있습니다.",
+                "\n\n나중에 모드 관리 > 로컬 탭에서 다시 실행할 수 있습니다.",
                 "\n\nYou can run this again later from MOD MANAGER > LOCAL."
             )
         );
@@ -210,7 +210,7 @@ public static class LegacyImportFlow
         double mb = r.TotalBytes / (1024.0 * 1024.0);
         var sb = new StringBuilder(
             Loc.Tr(
-                $"{r.Copied}개 항목을 복사했습니다 (파일 {r.FileCount}개, {mb:0.#} MB).",
+                $"{r.Copied}개 항목을 복사했습니다 (파일 {r.FileCount}개, {mb:0.#}MB).",
                 $"Copied {r.Copied} item(s) ({Loc.Files(r.FileCount)}, {mb:0.#} MB)."
             )
         );
@@ -235,7 +235,12 @@ public static class LegacyImportFlow
     private static Task<bool> ConfirmAsync(Node parent, string message, float scale)
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var dialog = new StyledDialog(message, scale, "IMPORT", "NOT NOW");
+        var dialog = new StyledDialog(
+            message,
+            scale,
+            Loc.Tr("가져오기", "IMPORT"),
+            Loc.Tr("나중에", "NOT NOW")
+        );
         dialog.Confirmed += () => tcs.TrySetResult(true);
         dialog.Cancelled += () => tcs.TrySetResult(false);
         parent.AddChild(dialog);
