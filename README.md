@@ -151,6 +151,8 @@ docs/                      # User guide (Korean) + images
 bash scripts/build.sh
 ```
 
+**Release builds (CI).** Pushing a `v*` tag that matches `export_version_name` runs `.github/workflows/release.yml`: `scripts/ci/fetch-build-inputs.sh` pulls every binary input from pinned public sources (Ekyso's v0.2.0 APK, StS2 Launcher Mod v0.4.2's FMOD 2.03.13 natives, the Godot 4.5.1 mono templates, dex2jar for `fmod.jar`), `sts2.dll` comes from a private store, and `scripts/ci/build-apk.sh` builds and signs the APK, which lands on a draft release. The same two scripts work locally for a fresh checkout (`STS2_DLL=/path/to/sts2.dll bash scripts/ci/fetch-build-inputs.sh`).
+
 This runs the full pipeline: `dotnet publish` the patcher → copy published DLLs to `android/assets/dotnet_bcl/` → copy the Android crypto native lib to JNI libs → bump the version in `gradle.properties` → build the APK via `./gradlew assembleMonoRelease`.
 
 Output: `android/build/outputs/apk/mono/release/StS2LauncherRedux-v<version>.apk`
