@@ -40,7 +40,7 @@
   <uses-feature android:glEsVersion="0x00030000" android:required="true" />
 
   <application
-    android:label="StS2 Launcher Mod"
+    android:label="StS2 Launcher Redux"
     android:allowBackup="false"
     android:icon="@mipmap/icon"
     android:appCategory="game"
@@ -53,7 +53,7 @@
 
     <activity
       android:name=".GodotApp"
-      android:label="StS2 Launcher Mod"
+      android:label="StS2 Launcher Redux"
       android:theme="@style/GodotAppSplashTheme"
       android:launchMode="singleInstancePerTask"
       android:excludeFromRecents="false"

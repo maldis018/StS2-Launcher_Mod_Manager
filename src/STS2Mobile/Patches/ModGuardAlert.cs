@@ -19,7 +19,7 @@ namespace STS2Mobile.Patches;
 // and go log-only in that case.
 //
 // Test trigger (QA only, no UI surface): drop a file at
-//   /storage/emulated/0/StS2LauncherMM/.modguard_test_alert
+//   /storage/emulated/0/StS2LauncherRedux/.modguard_test_alert
 // with content "ModName|ExceptionType" (both optional). A 2s watcher shows the
 // exact production dialog and deletes the file, so repeated triggers work.
 public static class ModGuardAlert

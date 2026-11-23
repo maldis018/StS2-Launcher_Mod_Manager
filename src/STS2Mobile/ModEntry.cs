@@ -69,7 +69,7 @@ public static class ModEntry
             var tmpDir =
                 filesRoot != null
                     ? Path.Combine(Path.GetDirectoryName(filesRoot), "cache", "MonoMod")
-                    : "/data/user/0/com.game.sts2launcher.modmanager/cache/MonoMod";
+                    : "/data/user/0/dev.aldis.sts2launcherredux/cache/MonoMod";
             Directory.CreateDirectory(tmpDir);
             System.Environment.SetEnvironmentVariable("TMPDIR", tmpDir);
             int cleaned = TryCleanStaleMonoModFiles(tmpDir);

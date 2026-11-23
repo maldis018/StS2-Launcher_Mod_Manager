@@ -235,7 +235,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            output.outputFileName = "StS2Launcher-v${variant.versionName}.apk"
+            output.outputFileName = "StS2LauncherRedux-v${variant.versionName}.apk"
         }
     }
 }

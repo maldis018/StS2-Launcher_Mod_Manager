@@ -1,21 +1,23 @@
-# StS2 Launcher Mod Manager
+# StS2 Launcher Redux
 
 **English** | [한국어](README.ko.md)
 
 An Android launcher + mod manager for **Slay the Spire 2**, built on a custom Godot 4.5.1 engine with .NET/Mono and Harmony runtime patching. Log in with Steam, download the game, browse the Steam Workshop, and play with mods — all on your phone.
 
-**Current release: [v0.4.1](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest)**
+**Current release: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
 
 > **📖 사용설명서 (한국어)** — 설치부터 모드/세이브 관리까지 스크린샷과 함께 설명하는 단계별 가이드: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**
 
-> **Fork notice** — This is a community fork of [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher). The upstream launcher's mod loader stopped working with newer game builds; this fork keeps mod loading compatible with each game update and adds Workshop support, save-data safety features, and mobile-UX improvements. See [Differences from upstream](#differences-from-upstream).
+> **Fork notice**: StS2 Launcher Redux is a fork of [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) ("StS2 Launcher Mod"), which is itself a community fork of [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher). The upstream launcher's mod loader stopped working with newer game builds; this fork keeps mod loading compatible with each game update and adds Workshop support, save-data safety features, and mobile-UX improvements. See [Differences from upstream](#differences-from-upstream).
 
-> **Disclaimer** — Unofficial community project. Slay the Spire 2 is developed and published by Mega Crit Games. A valid Steam account that owns Slay the Spire 2 is required; game files are downloaded directly from Steam after authentication. No game assets are included in this repository.
+> **Disclaimer**: StS2 Launcher Redux is an unofficial fan project and is not affiliated with, endorsed by, or supported by Mega Crit Games.
+>
+> Unofficial community project. Slay the Spire 2 is developed and published by Mega Crit Games. A valid Steam account that owns Slay the Spire 2 is required; game files are downloaded directly from Steam after authentication. No game assets are included in this repository.
 
 ## Getting started (players)
 
-1. Download the latest `StS2Launcher-vX.Y.Z.apk` from the [Releases page](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest) and install it.
-2. Launch, grant "All files access", and sign in by scanning the on-screen QR code with the Steam app on another phone or tablet, so the launcher never sees your password. With only one phone, use SIGN IN ON THIS PHONE: enter your password and approve the request in the Steam app (Steam Guard codes are also supported). The password is never stored.
+1. Download the latest `StS2LauncherRedux-vX.Y.Z.apk` from the [Releases page](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) and install it.
+2. Launch, grant "All files access", and log in with your Steam account (Steam Guard 2FA supported).
 3. Pick a Steam branch and download the game (~3 GB), then tap **PLAY**.
 
 Full walkthrough with screenshots: [사용설명서 (USER_GUIDE.md)](docs/USER_GUIDE.md). Upgrading between fork versions is a drop-in APK install — saves, login, and the game payload are preserved.
@@ -26,7 +28,7 @@ The fork diverged from `Ekyso/StS2-Launcher` in April 2026. Everything below is 
 
 ### Mod loading that tracks game updates
 
-- The upstream reflection-based mod loader crashes on current game builds (renamed private fields). Replaced with a Harmony IL transpiler that redirects the game's own mod scanner to `/storage/emulated/0/StS2LauncherMM/Mods/`.
+- The upstream reflection-based mod loader crashes on current game builds (renamed private fields). Replaced with a Harmony IL transpiler that redirects the game's own mod scanner to `/storage/emulated/0/StS2LauncherRedux/Mods/`.
 - Kept compatible through breaking game updates since then: v0.107 async-lowering changes (issue #47), v0.108 `ModelDb` contract change (issue #53), the v0.108 save-path helper signature change, and a general fix for init-setter properties under runtime IL re-emit that unblocked BaseLib 3.3.x (issue #55).
 - `tools/memberref-audit` statically audits our IL patches against a new game build before it ships, so signature breaks are caught before users hit them.
 
@@ -50,7 +52,7 @@ Added in v0.3.34 (issue #58) — the **MOD MANAGER** button opens a full in-app 
 - **Self-update (issue #12)** — separate `CHECK GAME UPDATE` / `CHECK LAUNCHER UPDATE` buttons, automatic update check on boot, and an in-app APK download + install flow.
 - **Steam branch picker** — choose `public`, `public-beta`, etc. per download; switching branches forces a clean re-download to avoid delta corruption.
 - **Mobile UX** — sensor-based landscape rotation, layout reflow across fold/unfold, split-screen, portrait-aspect windows, and 21:9 displays, rewritten touch scrolling with fling, back-button guard, and virtual-keyboard-aware panels.
-- **Diagnostics without adb** — persistent Debug toggle captures logcat to `StS2LauncherMM/Logs/` (auto-rotated) so users can attach logs to issues.
+- **Diagnostics without adb** — persistent Debug toggle captures logcat to `StS2LauncherRedux/Logs/` (auto-rotated) so users can attach logs to issues.
 
 ### Mod-compatibility shims
 
@@ -60,11 +62,11 @@ Added in v0.3.34 (issue #58) — the **MOD MANAGER** button opens a full in-app 
 
 ### Separate app identity
 
-Package id is `com.game.sts2launcher.modmanager` and external storage lives under `/storage/emulated/0/StS2LauncherMM/` — the fork installs alongside the upstream APK without sharing data, and the app label is **"StS2 Launcher Mod"**.
+Package id is `dev.aldis.sts2launcherredux`, the app label is **"StS2 Launcher Redux"**, and external storage lives under `/storage/emulated/0/StS2LauncherRedux/`. It installs alongside Ekyso's launcher and StS2 Launcher Mod (`com.game.sts2launcher.modmanager`, `/storage/emulated/0/StS2LauncherMM/`) without sharing data.
 
 ## Features
 
-- **Steam authentication** — password-free QR sign-in via SteamKit2 (scanned with the Steam app on another device), with a single-phone password route approved in the Steam app or by Steam Guard code; the password is never stored; refresh tokens encrypted at rest via Android Keystore (AES-256-GCM, hardware-backed TEE).
+- **Steam authentication** — SteamKit2 login with Steam Guard 2FA; refresh tokens encrypted at rest via Android Keystore (AES-256-GCM, hardware-backed TEE).
 - **Game download** — Steam depot download with update checking and branch selection.
 - **Steam Workshop** — in-app browse, subscribe, auto-download/update, and mod enable/disable.
 - **Cloud saves** — full Steam Cloud sync via SteamKit2's CCloud API with an explicit conflict-resolution UI and destructive-write guards.
@@ -78,7 +80,7 @@ Package id is `com.game.sts2launcher.modmanager` and external storage lives unde
 
 **Workshop (recommended)** — tap **MOD MANAGER** on the launch screen, browse or search the WORKSHOP tab, and subscribe. Download, installation, and updates are automatic. See the [사용설명서](docs/USER_GUIDE.md) for details.
 
-**Manual install** — for mods not on the Workshop, drop each mod as its own subfolder under `/storage/emulated/0/StS2LauncherMM/Mods/` using any file manager. A valid mod folder contains the mod's `.dll`, optional `.pck`, and a `<ModId>.json` manifest at its root — the same layout PC users put in `Steam\steamapps\common\Slay the Spire 2\mods\`.
+**Manual install** — for mods not on the Workshop, drop each mod as its own subfolder under `/storage/emulated/0/StS2LauncherRedux/Mods/` using any file manager. A valid mod folder contains the mod's `.dll`, optional `.pck`, and a `<ModId>.json` manifest at its root — the same layout PC users put in `Steam\steamapps\common\Slay the Spire 2\mods\`.
 
 ![Mods folder layout](docs/images/mods_folder.jpg)
 
@@ -145,14 +147,14 @@ bash scripts/build.sh
 
 This runs the full pipeline: `dotnet publish` the patcher → copy published DLLs to `android/assets/dotnet_bcl/` → copy the Android crypto native lib to JNI libs → bump the version in `gradle.properties` → build the APK via `./gradlew assembleMonoRelease`.
 
-Output: `android/build/outputs/apk/mono/release/StS2Launcher-v<version>.apk`
+Output: `android/build/outputs/apk/mono/release/StS2LauncherRedux-v<version>.apk`
 
 ```bash
 # Install to a device
-adb install -r android/build/outputs/apk/mono/release/StS2Launcher-v*.apk
+adb install -r android/build/outputs/apk/mono/release/StS2LauncherRedux-v*.apk
 
 # Fresh install (clear saved credentials + cached assemblies)
-adb shell pm clear com.game.sts2launcher.modmanager
+adb shell pm clear dev.aldis.sts2launcherredux
 
 # Regenerate bootstrap PCK (only if project.godot changes)
 python3 scripts/make-bootstrap-pck.py

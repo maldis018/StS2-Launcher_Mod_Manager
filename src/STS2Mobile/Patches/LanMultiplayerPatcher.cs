@@ -425,7 +425,7 @@ public static class LanMultiplayerPatcher
     // re-joins. Persist a per-device id so the same device always presents the
     // same id across sessions.
     //
-    // 0.3.21: storage moved to external StS2LauncherMM/Config/ so users can
+    // 0.3.21: storage moved to external StS2LauncherRedux/Config/ so users can
     // inspect/edit without root or ADB (issue #26). user:// path kept as a
     // backward-compat read source and as a write fallback when storage
     // permission is denied.

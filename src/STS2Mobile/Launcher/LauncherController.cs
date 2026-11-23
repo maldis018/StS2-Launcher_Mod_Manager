@@ -314,7 +314,7 @@ public class LauncherController
         // Issue #36 Part A: Local Backup is no longer a persisted toggle —
         // there's nothing to restore on boot. It's a one-shot action button
         // (OnLocalBackupPressed) that snapshots the save tree on demand.
-        // Always ensure the external StS2LauncherMM/{Mods,Saves} tree exists when
+        // Always ensure the external StS2LauncherRedux/{Mods,Saves} tree exists when
         // the user has granted storage permission — the Mods directory in
         // particular is needed for ModLoaderPatches to find user-installed mods,
         // independently of the Local Backup toggle. Internally a no-op when
@@ -329,7 +329,7 @@ public class LauncherController
 
     // Re-prompt every launch until storage permission is actually granted.
     // Mods, save backup, and debug logs all live under
-    // /storage/emulated/0/StS2LauncherMM/, so a stuck-on-no state silently
+    // /storage/emulated/0/StS2LauncherRedux/, so a stuck-on-no state silently
     // breaks half the launcher. The previous one-time marker meant a single
     // misclick on Cancel left the user permanently locked out with no way
     // back from inside the launcher.
@@ -339,7 +339,7 @@ public class LauncherController
             return;
 
         _view.ShowConfirmation(
-            "Allow 'All Files Access'?\n\nNeeded for installing mods, saving local game backups, and writing debug logs under /storage/emulated/0/StS2LauncherMM/.\n\nIf you cancel, this prompt will appear again on the next launch.",
+            "Allow 'All Files Access'?\n\nNeeded for installing mods, saving local game backups, and writing debug logs under /storage/emulated/0/StS2LauncherRedux/.\n\nIf you cancel, this prompt will appear again on the next launch.",
             onConfirmed: AppPaths.RequestStoragePermission,
             onCancelled: null
         );
@@ -1325,7 +1325,7 @@ public class LauncherController
     // of the whole save tree via LocalBackupService.BackupNow() → result modal.
     private void OnLocalBackupPressed()
     {
-        // Backups live under external storage (StS2LauncherMM/Saves). Without
+        // Backups live under external storage (StS2LauncherRedux/Saves). Without
         // the permission there's nowhere to write — request it and bail so the
         // user can grant and retry, rather than firing a guaranteed failure.
         // (BackupNow also re-checks and returns NeedsPermission, but pre-checking

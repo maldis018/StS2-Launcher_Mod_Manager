@@ -1,21 +1,23 @@
-# StS2 Launcher Mod Manager
+# StS2 Launcher Redux
 
 [English](README.md) | **한국어**
 
 **Slay the Spire 2** 를 안드로이드에서 실행하는 런처 + 모드 매니저입니다. 커스텀 Godot 4.5.1 엔진(.NET/Mono) 위에서 Harmony 런타임 패칭으로 데스크톱 게임을 모바일에 맞게 적응시킵니다. Steam 로그인, 게임 다운로드, 창작마당(Workshop) 모드 구독, 세이브 관리까지 전부 폰 안에서 처리됩니다.
 
-**현재 릴리즈: [v0.3.34](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest)** (versionCode 314)
+**현재 릴리즈: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
 
 > **📖 사용설명서** — 설치부터 모드/세이브 관리까지 스크린샷과 함께 설명하는 단계별 가이드: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**
 
-> **포크 안내** — 이 프로젝트는 [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) 의 커뮤니티 포크입니다. 업스트림 런처의 모드 로더가 최신 게임 빌드에서 작동하지 않게 되어, 이 포크는 게임 업데이트마다 모드 로딩 호환성을 유지하면서 창작마당 지원·세이브 안전장치·모바일 UX 개선을 추가합니다. [업스트림과의 차이](#업스트림과의-차이) 참조.
+> **포크 안내**: StS2 Launcher Redux 는 [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) ("StS2 Launcher Mod") 의 포크이며, 그 프로젝트는 [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) 의 커뮤니티 포크입니다. 업스트림 런처의 모드 로더가 최신 게임 빌드에서 작동하지 않게 되어, 이 포크는 게임 업데이트마다 모드 로딩 호환성을 유지하면서 창작마당 지원·세이브 안전장치·모바일 UX 개선을 추가합니다. [업스트림과의 차이](#업스트림과의-차이) 참조.
 
-> **면책** — 비공식 커뮤니티 프로젝트입니다. Slay the Spire 2 는 Mega Crit Games 가 개발·배급합니다. Slay the Spire 2 를 소유한 유효한 Steam 계정이 필요하며, 게임 파일은 인증 후 Steam 에서 직접 다운로드됩니다. 이 저장소에는 게임 에셋이 포함되어 있지 않습니다.
+> **면책**: StS2 Launcher Redux 는 비공식 팬 프로젝트이며 Mega Crit Games 와 제휴하거나 보증·지원을 받지 않습니다.
+>
+> 비공식 커뮤니티 프로젝트입니다. Slay the Spire 2 는 Mega Crit Games 가 개발·배급합니다. Slay the Spire 2 를 소유한 유효한 Steam 계정이 필요하며, 게임 파일은 인증 후 Steam 에서 직접 다운로드됩니다. 이 저장소에는 게임 에셋이 포함되어 있지 않습니다.
 
 ## 시작하기 (플레이어용)
 
-1. [Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest)에서 최신 `StS2Launcher-vX.Y.Z.apk` 를 받아 설치합니다.
-2. 실행 후 "모든 파일 액세스" 권한을 부여하고 다른 휴대폰이나 태블릿의 Steam 앱으로 화면의 QR 코드를 스캔해 로그인합니다. 이 경우 런처는 비밀번호를 다루지 않습니다. 휴대폰이 하나뿐이면 SIGN IN ON THIS PHONE 을 눌러 비밀번호를 입력하고 Steam 앱에서 요청을 승인하세요 (Steam Guard 코드도 지원). 비밀번호는 저장되지 않습니다.
+1. [Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)에서 최신 `StS2LauncherRedux-vX.Y.Z.apk` 를 받아 설치합니다.
+2. 실행 후 "모든 파일 액세스" 권한을 부여하고 Steam 계정으로 로그인합니다 (Steam Guard 2FA 지원).
 3. Steam 브랜치를 선택해 게임(~3GB)을 다운로드하고 **PLAY** 를 누릅니다.
 
 스크린샷이 포함된 전체 안내는 [사용설명서](docs/USER_GUIDE.md)에 있습니다. 포크 버전 간 업그레이드는 APK 덮어쓰기 설치로 충분하며 세이브·로그인·게임 페이로드가 모두 보존됩니다.
@@ -26,7 +28,7 @@
 
 ### 게임 업데이트를 따라가는 모드 로딩
 
-- 업스트림의 리플렉션 기반 모드 로더는 현재 게임 빌드에서 크래시합니다 (private 필드명 변경). Harmony IL 트랜스파일러로 게임 자체 모드 스캐너를 `/storage/emulated/0/StS2LauncherMM/Mods/` 로 리다이렉트하는 방식으로 교체했습니다.
+- 업스트림의 리플렉션 기반 모드 로더는 현재 게임 빌드에서 크래시합니다 (private 필드명 변경). Harmony IL 트랜스파일러로 게임 자체 모드 스캐너를 `/storage/emulated/0/StS2LauncherRedux/Mods/` 로 리다이렉트하는 방식으로 교체했습니다.
 - 이후의 파괴적 게임 업데이트에도 계속 호환 유지: v0.107 async lowering 변경 (issue #47), v0.108 `ModelDb` 계약 변경 (issue #53), v0.108 세이브 경로 헬퍼 시그니처 변경, 그리고 BaseLib 3.3.x 를 살린 init-setter 런타임 IL 재emit 일반 수정 (issue #55).
 - `tools/memberref-audit` 가 새 게임 빌드 배포 전에 IL 패치들을 정적으로 감사해, 시그니처 파손을 사용자가 겪기 전에 잡아냅니다.
 
@@ -50,7 +52,7 @@ v0.3.34 (issue #58) 추가 — **MOD MANAGER** 버튼이 인앱 Mod Hub 를 엽�
 - **자체 업데이트 (issue #12)** — `CHECK GAME UPDATE` / `CHECK LAUNCHER UPDATE` 버튼 분리, 부팅 시 자동 업데이트 확인, 인앱 APK 다운로드 + 설치 흐름.
 - **Steam 브랜치 선택** — 다운로드마다 `public`, `public-beta` 등 선택 가능; 브랜치 전환 시 delta 손상을 피하려 전체 재다운로드.
 - **모바일 UX** — 센서 기반 가로 회전, 폴드/언폴드·분할화면·세로 비율 창·21:9 대응 레이아웃 리플로우, 플링 지원 터치 스크롤 재작성, 뒤로가기 가드, 가상 키보드 대응 패널.
-- **adb 없는 진단** — Debug 토글이 logcat 을 `StS2LauncherMM/Logs/` 에 자동 캡처 (자동 로테이션) — 사용자가 이슈에 로그를 바로 첨부할 수 있습니다.
+- **adb 없는 진단** — Debug 토글이 logcat 을 `StS2LauncherRedux/Logs/` 에 자동 캡처 (자동 로테이션) — 사용자가 이슈에 로그를 바로 첨부할 수 있습니다.
 
 ### 모드 호환성 shim
 
@@ -60,11 +62,11 @@ v0.3.34 (issue #58) 추가 — **MOD MANAGER** 버튼이 인앱 Mod Hub 를 엽�
 
 ### 별도 앱 아이덴티티
 
-패키지 id 는 `com.game.sts2launcher.modmanager`, 외부 저장공간은 `/storage/emulated/0/StS2LauncherMM/` — 업스트림 APK 와 데이터를 공유하지 않고 나란히 설치할 수 있으며, 앱 라벨은 **"StS2 Launcher Mod"** 입니다.
+패키지 id 는 `dev.aldis.sts2launcherredux`, 앱 라벨은 **"StS2 Launcher Redux"**, 외부 저장공간은 `/storage/emulated/0/StS2LauncherRedux/` 입니다. Ekyso 런처 및 StS2 Launcher Mod (`com.game.sts2launcher.modmanager`, `/storage/emulated/0/StS2LauncherMM/`) 와 데이터를 공유하지 않고 나란히 설치할 수 있습니다.
 
 ## 기능
 
-- **Steam 인증** — SteamKit2 기반 비밀번호 없는 QR 로그인 (다른 기기의 Steam 앱으로 스캔), 휴대폰 하나만 있을 때는 비밀번호 입력 후 Steam 앱 승인 또는 Steam Guard 코드로 로그인; 비밀번호는 저장하지 않음; 리프레시 토큰은 Android Keystore (AES-256-GCM, 하드웨어 TEE) 로 암호화 저장.
+- **Steam 인증** — SteamKit2 로그인 + Steam Guard 2FA; 리프레시 토큰은 Android Keystore (AES-256-GCM, 하드웨어 TEE) 로 암호화 저장.
 - **게임 다운로드** — Steam depot 다운로드 + 업데이트 확인 + 브랜치 선택.
 - **Steam 창작마당** — 인앱 검색·구독·자동 다운로드/업데이트·모드 보관.
 - **클라우드 세이브** — SteamKit2 CCloud API 기반 전체 Steam Cloud 동기화 + 명시적 충돌 해결 UI + 파괴적 쓰기 가드.
@@ -78,7 +80,7 @@ v0.3.34 (issue #58) 추가 — **MOD MANAGER** 버튼이 인앱 Mod Hub 를 엽�
 
 **창작마당 (권장)** — 런치 화면에서 **MOD MANAGER** 탭 → WORKSHOP 탭에서 검색·구독. 다운로드·설치·업데이트는 자동입니다. 자세한 내용은 [사용설명서](docs/USER_GUIDE.md#12-모드-설치-선택) 참조.
 
-**수동 설치** — 창작마당에 없는 모드는 파일 매니저로 `/storage/emulated/0/StS2LauncherMM/Mods/` 아래에 모드별 폴더로 넣습니다. 유효한 모드 폴더는 루트에 `.dll`, 선택적 `.pck`, `<ModId>.json` 매니페스트를 포함합니다 — PC 의 `Steam\steamapps\common\Slay the Spire 2\mods\` 와 동일한 구조입니다.
+**수동 설치** — 창작마당에 없는 모드는 파일 매니저로 `/storage/emulated/0/StS2LauncherRedux/Mods/` 아래에 모드별 폴더로 넣습니다. 유효한 모드 폴더는 루트에 `.dll`, 선택적 `.pck`, `<ModId>.json` 매니페스트를 포함합니다 — PC 의 `Steam\steamapps\common\Slay the Spire 2\mods\` 와 동일한 구조입니다.
 
 ![Mods 폴더 구조](docs/images/mods_folder.jpg)
 
@@ -145,14 +147,14 @@ bash scripts/build.sh
 
 전체 파이프라인: 패처 `dotnet publish` → 산출 DLL 을 `android/assets/dotnet_bcl/` 로 복사 → 안드로이드 crypto 네이티브 lib 을 JNI libs 로 복사 → `gradle.properties` 버전 bump → `./gradlew assembleMonoRelease` 로 APK 빌드.
 
-산출물: `android/build/outputs/apk/mono/release/StS2Launcher-v<version>.apk`
+산출물: `android/build/outputs/apk/mono/release/StS2LauncherRedux-v<version>.apk`
 
 ```bash
 # 디바이스 설치
-adb install -r android/build/outputs/apk/mono/release/StS2Launcher-v*.apk
+adb install -r android/build/outputs/apk/mono/release/StS2LauncherRedux-v*.apk
 
 # 클린 설치 (저장된 자격증명 + 캐시된 어셈블리 삭제)
-adb shell pm clear com.game.sts2launcher.modmanager
+adb shell pm clear dev.aldis.sts2launcherredux
 
 # bootstrap PCK 재생성 (project.godot 변경 시에만)
 python3 scripts/make-bootstrap-pck.py

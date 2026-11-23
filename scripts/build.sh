@@ -65,4 +65,4 @@ echo "Building APK..."
 cd "$BUILD_DIR"
 ./gradlew assembleMonoRelease
 
-echo "Done: $APK_DIR/StS2Launcher-v$NEW_NAME.apk"
+echo "Done: $APK_DIR/StS2LauncherRedux-v$NEW_NAME.apk"

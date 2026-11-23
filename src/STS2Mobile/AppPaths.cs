@@ -7,12 +7,11 @@ namespace STS2Mobile;
 // Shared path constants for external storage directories and permission helpers.
 public static class AppPaths
 {
-    // Renamed in 0.3.0 to avoid sharing external storage with Ekyso's upstream
-    // fork (issue #3). Users upgrading from the previous /StS2Launcher path
-    // are pointed to README/release notes for the manual move — auto-migration
-    // would only help upgrade-from-our-fork users while adding code complexity
-    // and surprising fresh installers, so it's intentionally not implemented.
-    public const string ExternalRoot = "/storage/emulated/0/StS2LauncherMM";
+    // StS2 Launcher Redux (v0.5.0+) gets its own folder so it can sit next to
+    // Ekyso's launcher (/StS2Launcher) and StS2 Launcher Mod (/StS2LauncherMM)
+    // without sharing data. LegacyImportService copies (never moves) mods,
+    // backups and config over from /StS2LauncherMM on request.
+    public const string ExternalRoot = "/storage/emulated/0/StS2LauncherRedux";
     public const string ExternalModsDir = ExternalRoot + "/Mods";
 
     // Issue #58 stash: disabled mods live in a SIBLING of Mods/, never inside it —

@@ -1,4 +1,4 @@
-# StS2 Launcher Mod 사용설명서
+# StS2 Launcher Redux 사용설명서
 
 처음 설치하는 사용자를 위한 단계별 가이드입니다. 각 단계마다 폰 화면이 어떻게 보이는지 스크린샷과 함께 설명합니다.
 
@@ -29,7 +29,7 @@
 
 ## 1. APK 다운로드 + 설치
 
-[Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest) 에서 가장 최신 버전의 `StS2Launcher-vX.Y.Z.apk` 파일을 폰으로 다운로드합니다.
+[Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest) 에서 가장 최신 버전의 `StS2LauncherRedux-vX.Y.Z.apk` 파일을 폰으로 다운로드합니다.
 
   <img src="images/1.jpg" width="600">
 
@@ -48,7 +48,7 @@
   <img src="images/3.jpg" width="600">
 
 이 권한이 필요한 이유는:
-- 모드 폴더 (`/storage/emulated/0/StS2LauncherMM/Mods/`) 에 사용자가 직접 모드를 넣을 수 있어야 하고,
+- 모드 폴더 (`/storage/emulated/0/StS2LauncherRedux/Mods/`) 에 사용자가 직접 모드를 넣을 수 있어야 하고,
 - Local Backup (세이브 백업) 이 외부 저장공간에 세이브 스냅샷을 저장하려면 외부 storage 쓰기 권한이 필요합니다.
 
 권한 부여 화면에서 토글을 켜고 뒤로가기를 누르면 런처로 복귀합니다.
@@ -184,7 +184,7 @@
 | 게임 PCK / 다운로드 데이터 (`game/`, `download_state/`) | **보존** — 재다운로드 없음 |
 | 세이브 / 진행도 (`steam/<userId>/...`) | **보존** |
 | Steam 로그인 / Auto Sync 설정 | **보존** |
-| Local Backup 스냅샷 (`StS2LauncherMM/Saves/`) | **보존** — 외부 저장공간이라 앱 캐시 정리와 무관 |
+| Local Backup 스냅샷 (`StS2LauncherRedux/Saves/`) | **보존** — 외부 저장공간이라 앱 캐시 정리와 무관 |
 | 모바일용 텍스처 캐시 (`etc2_cache/.godot/imported/`) | **재생성** (~30~60초) |
 
 자동 흐름 도입 전 회복 방법이었던 "앱 데이터 삭제 후 재설치" 와 동등한 효과를 게임 재다운로드 없이 30초로 처리합니다. 자세한 내용은 [issue #23](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues/23) 참조.
@@ -294,10 +294,10 @@ Steam Cloud 와 폰 사이에 진행도 차이가 감지되면 다이얼로그�
 
 ### 저장 위치 / 구조
 
-외부 저장공간 `/storage/emulated/0/StS2LauncherMM/Saves/` 아래에 **백업 유형별**로 나뉘고, 그 안에 백업 시각(`<ts>` = `yyyyMMdd_HHmmss`) 폴더가, 다시 그 안에 원본 세이브 트리가 그대로 들어갑니다.
+외부 저장공간 `/storage/emulated/0/StS2LauncherRedux/Saves/` 아래에 **백업 유형별**로 나뉘고, 그 안에 백업 시각(`<ts>` = `yyyyMMdd_HHmmss`) 폴더가, 다시 그 안에 원본 세이브 트리가 그대로 들어갑니다.
 
 ```
-StS2LauncherMM/Saves/
+StS2LauncherRedux/Saves/
   ├── manual/<ts>/<원본 트리>                       (Local Backup 버튼 = 수동)
   └── auto/
       ├── <ts>_match/<원본 트리>                     (핸드셰이크: 로컬=클라우드 일치 시)
@@ -323,7 +323,7 @@ steam/<SteamID>/[modded/]profile<N>/saves/<파일명>
 
 ### 회복 방법
 
-1. 외부 파일 매니저(또는 PC 에서 `adb pull`)로 `StS2LauncherMM/Saves/` 아래 원하는 백업 폴더를 엽니다. 폴더명의 시각·유형(`_match`/`_conflict`)으로 어느 시점 것인지 판단합니다.
+1. 외부 파일 매니저(또는 PC 에서 `adb pull`)로 `StS2LauncherRedux/Saves/` 아래 원하는 백업 폴더를 엽니다. 폴더명의 시각·유형(`_match`/`_conflict`)으로 어느 시점 것인지 판단합니다.
 2. **게임을 종료한 상태에서**, 백업 안의 파일을 게임의 실제 세이브 위치로 도로 복사합니다. 파일명·폴더 구조가 이미 원본과 같으므로 그대로 덮어쓰면 됩니다.
 
 > 참고: 외부 → 내부로 **자동 복원해 주는 UI 는 아직 없습니다.** 위처럼 수동 복사로 처리합니다.
@@ -356,7 +356,7 @@ Mod Hub 는 4개 탭으로 구성됩니다:
 #### 검색·구독 (작동 방식)
 
 - 검색은 **제목 / 본문 텍스트 / 창작마당 URL·ID 붙여넣기** 3가지 형식을 지원합니다. 목록에 안 뜨는 (unlisted) 모드도 URL/ID 로 직접 조회·구독할 수 있습니다.
-- **SUBSCRIBE** 를 누르면 Steam 계정에 구독이 등록되고 즉시 다운로드가 시작됩니다. 다운로드된 모드는 수동 설치와 같은 `/storage/emulated/0/StS2LauncherMM/Mods/` 폴더에 저장됩니다.
+- **SUBSCRIBE** 를 누르면 Steam 계정에 구독이 등록되고 즉시 다운로드가 시작됩니다. 다운로드된 모드는 수동 설치와 같은 `/storage/emulated/0/StS2LauncherRedux/Mods/` 폴더에 저장됩니다.
 
   <img src="images/workshop_3.png" width="600">
 
@@ -384,7 +384,7 @@ Mod Hub 는 4개 탭으로 구성됩니다:
 
 | 버튼 | 동작 |
 |---|---|
-| **DISABLE** | 모드를 `StS2LauncherMM/ModsDisabled/` 로 이동 — 게임에서만 숨김, 파일은 보존 |
+| **DISABLE** | 모드를 `StS2LauncherRedux/ModsDisabled/` 로 이동 — 게임에서만 숨김, 파일은 보존 |
 | **ENABLE** | 즉시 복구 (재다운로드 없음). 보관 중 밀린 업데이트가 있으면 받을지 물어봄 |
 | **UNSUBSCRIBE** | 구독 해제 + 기기에서 모드 폴더 삭제 |
 
@@ -397,8 +397,8 @@ Mod Hub 는 4개 탭으로 구성됩니다:
 
 창작마당에 없는 모드는 기존 방식대로 직접 폴더에 넣습니다:
 
-1. **[ZArchiver](https://play.google.com/store/apps/details?id=ru.zdevs.zarchiver)** (Play Store 무료) 를 다운받아 사용을 권장합니다. 삼성 **내 파일** 등 일부 OEM 기본 파일 매니저는 안드로이드 scoped storage 정책 때문에 `/storage/emulated/0/StS2LauncherMM/` 경로가 보이지 않을 수 있습니다 (실제 검증).
-2. ZArchiver 로 `/storage/emulated/0/StS2LauncherMM/Mods/` 경로 진입.
+1. **[ZArchiver](https://play.google.com/store/apps/details?id=ru.zdevs.zarchiver)** (Play Store 무료) 를 다운받아 사용을 권장합니다. 삼성 **내 파일** 등 일부 OEM 기본 파일 매니저는 안드로이드 scoped storage 정책 때문에 `/storage/emulated/0/StS2LauncherRedux/` 경로가 보이지 않을 수 있습니다 (실제 검증).
+2. ZArchiver 로 `/storage/emulated/0/StS2LauncherRedux/Mods/` 경로 진입.
 3. 모드 폴더 (예: `MyMod/`) 통째로 그 안에 복사. 폴더 내부에는 `.dll`, 선택적 `.pck`, `<ModId>.json` 매니페스트가 있어야 함. (PC와 동일, 다르지 않음)
 
   <img src="images/19.jpg" width="600">
@@ -420,7 +420,7 @@ Mod Hub 는 4개 탭으로 구성됩니다:
 1. **P2P 게임 트래픽** (Steam NetworkingSockets / SDR)
 2. **오버레이, SteamInput** — Steam 클라이언트 프로세스의 기능이라 프로토콜 수준에서 구현 불가 (예: QuickReload)
 
-모드가 작동하지 않으면 [14번 항목](#14-디버그-로그-debug-토글)의 디버그 로그와 함께 [이슈](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues)로 제보해 주세요.
+모드가 작동하지 않으면 [14번 항목](#14-디버그-로그-debug-토글)의 디버그 로그와 함께 [이슈](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)로 제보해 주세요.
 
 > **모드 세이브 병합 관련**: 게임 업데이트로 Save 저장 로직이 변경되면서 **UnifiedSave 모드는 사용할 수 없습니다.** 모드 세이브 병합이 필요하면 [SaveMerger](https://steamcommunity.com/sharedfiles/filedetails/?id=3748139900) 를 사용하세요. 세이브를 건드리는 모드를 쓰기 전에는 [Local Backup](#11-local-backup-세이브-백업) 으로 스냅샷을 만들어 두는 것을 권장합니다.
 
@@ -481,7 +481,7 @@ PLAY 버튼 위에 위치한 **CHECK LAUNCHER UPDATE** 버튼으로 언제든 �
 ### 저장 위치
 
 ```
-/storage/emulated/0/StS2LauncherMM/Logs/
+/storage/emulated/0/StS2LauncherRedux/Logs/
   ├── launcher_<YYYYMMDD>_<HHMMSS>.log  (매 launch 마다 새 파일)
   └── ...
 ```
@@ -493,7 +493,7 @@ PLAY 버튼 위에 위치한 **CHECK LAUNCHER UPDATE** 버튼으로 언제든 �
 문제 보고 시:
 1. 외부 파일 매니저 (ZArchiver 권장) 로 위 경로 진입.
 2. **launcher_*.log** 중 문제가 발생한 시점의 파일 (보통 가장 최근 것) 을 찾아 PC 로 옮기거나 메신저 등으로 첨부.
-3. 이슈 트래커에 첨부해 주세요 → [iunius612/StS2-Launcher_Mod_Manager/issues](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues)
+3. 이슈 트래커에 첨부해 주세요 → [maldis018/StS2-Launcher_Mod_Manager/issues](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues)
 
 ### Debug 토글 OFF
 
@@ -523,7 +523,7 @@ PC 측이라면 [shrederr/sts2-progress-rebuild](https://github.com/shrederr/sts
 
 모바일 local 만 잘못됐다면 (cloud 는 멀쩡) Save Manager 의 **클라우드 유지** 로 받으면 회복.
 
-Local Backup 스냅샷이 있다면 `/storage/emulated/0/StS2LauncherMM/Saves/{manual,auto}/<ts>/...` 에서 직접 복원 가능. 특히 핸드셰이크 충돌 시 `auto/<ts>_conflict/discarded/` 에 **버려진 쪽 데이터**가 그대로 남아 있어, KeepLocal/KeepCloud 를 잘못 골랐어도 되돌릴 수 있습니다. ([11번](#11-local-backup-세이브-백업) 참조)
+Local Backup 스냅샷이 있다면 `/storage/emulated/0/StS2LauncherRedux/Saves/{manual,auto}/<ts>/...` 에서 직접 복원 가능. 특히 핸드셰이크 충돌 시 `auto/<ts>_conflict/discarded/` 에 **버려진 쪽 데이터**가 그대로 남아 있어, KeepLocal/KeepCloud 를 잘못 골랐어도 되돌릴 수 있습니다. ([11번](#11-local-backup-세이브-백업) 참조)
   <img src="images/23.jpg" width="600">
 
 ### Q. Save Manager 가 매번 "충돌" 이라고 떠요.
@@ -555,7 +555,7 @@ CHECK GAME UPDATE 로 다른 브랜치를 선택하면 자동으로 풀 재다�
 | 일부 태블릿 (Lenovo Y700/Y704 등) 에서 런처 진입 실패 | [이슈 #6](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues/6) — device 로그 수집 중 |
 | PC ↔ 폰 progress.save 사이즈 발산 (매 device 전환 시 conflict 다이얼로그 한 번씩 뜸) | 별도 추적 — destructive 영향은 0.3.2 에서 차단됨 |
 
-새 문제가 발견되면 [이슈 트래커](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues) 에 등록 부탁드립니다. `adb logcat -d > sts2.log` 로 채취한 로그를 첨부해 주시면 분석에 큰 도움이 됩니다.
+새 문제가 발견되면 [이슈 트래커](https://github.com/maldis018/StS2-Launcher_Mod_Manager/issues) 에 등록 부탁드립니다. `adb logcat -d > sts2.log` 로 채취한 로그를 첨부해 주시면 분석에 큰 도움이 됩니다.
 
 ---
 
@@ -568,14 +568,14 @@ CHECK GAME UPDATE 로 다른 브랜치를 선택하면 자동으로 풀 재다�
 adb logcat -s DOTNET:I STS2Mobile:V godot:V
 
 # 외부 저장 모드/세이브 폴더 보기
-adb shell ls -la /storage/emulated/0/StS2LauncherMM/Mods/
-adb shell ls -la /storage/emulated/0/StS2LauncherMM/Saves/
+adb shell ls -la /storage/emulated/0/StS2LauncherRedux/Mods/
+adb shell ls -la /storage/emulated/0/StS2LauncherRedux/Saves/
 
 # 강제 초기화 (모든 데이터 삭제 후 새 사용자처럼 시작)
-adb shell pm clear com.game.sts2launcher.modmanager
-adb shell rm -rf /storage/emulated/0/StS2LauncherMM
+adb shell pm clear dev.aldis.sts2launcherredux
+adb shell rm -rf /storage/emulated/0/StS2LauncherRedux
 ```
 
 ---
 
-*이 문서는 [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) 의 일부입니다. 잘못된 정보나 추가하고 싶은 항목이 있으면 PR 또는 이슈로 알려주세요.*
+*이 문서는 [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) 의 일부입니다. 잘못된 정보나 추가하고 싶은 항목이 있으면 PR 또는 이슈로 알려주세요.*

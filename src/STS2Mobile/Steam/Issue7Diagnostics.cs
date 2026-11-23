@@ -8,8 +8,8 @@ namespace STS2Mobile.Steam;
 
 // Read-only diagnostic logging for issue #7 (Save Manager not recognizing
 // in-progress run / current_run.save). Enabled by the marker file
-// /storage/emulated/0/StS2LauncherMM/.diagnose_issue7 — drop with
-// `adb shell touch /storage/emulated/0/StS2LauncherMM/.diagnose_issue7`.
+// /storage/emulated/0/StS2LauncherRedux/.diagnose_issue7 — drop with
+// `adb shell touch /storage/emulated/0/StS2LauncherRedux/.diagnose_issue7`.
 //
 // Strictly observation: nothing here changes save flow. Adds verbose [Diag-i7]
 // log lines so we can tell, post-hoc, which CloudSyncDecisions branch fired,

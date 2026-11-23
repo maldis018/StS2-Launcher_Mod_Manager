@@ -81,7 +81,7 @@ public class GodotApp extends GodotActivity {
 	private Thread logcatThread;
 	private File logcatFile;
 	private static final String DEBUG_LOGCAT_PREF = "debug_logcat_enabled";
-	private static final String EXTERNAL_LOGS_SUBDIR = "StS2LauncherMM/Logs";
+	private static final String EXTERNAL_LOGS_SUBDIR = "StS2LauncherRedux/Logs";
 	// Default ON so users hitting boot crashes still produce a log; toggle off
 	// in-app to opt out. See LauncherController.OnDebugTogglePressed.
 	private static final boolean DEBUG_LOGCAT_DEFAULT = true;
@@ -437,7 +437,7 @@ public class GodotApp extends GodotActivity {
 		}
 		try {
 			File savesDir = new File(Environment.getExternalStorageDirectory(),
-					"StS2LauncherMM/Saves");
+					"StS2LauncherRedux/Saves");
 			savesDir.mkdirs();
 			String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
 			File zipFile = new File(savesDir, "diag-userdata-backup-" + ts + ".zip");
@@ -455,7 +455,7 @@ public class GodotApp extends GodotActivity {
 	private void runDiagnosticDump() {
 		try {
 			File dumpDir = new File(Environment.getExternalStorageDirectory(),
-					"StS2LauncherMM/Diagnostics");
+					"StS2LauncherRedux/Diagnostics");
 			dumpDir.mkdirs();
 			String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
 			File dumpFile = new File(dumpDir, "diag-" + ts + ".txt");
@@ -1130,7 +1130,7 @@ public class GodotApp extends GodotActivity {
 	//
 	// When enabled, spawn a logcat process scoped to our own PID (--pid) so no
 	// READ_LOGS permission is needed, and stream every line to a timestamped
-	// file under /storage/emulated/0/StS2LauncherMM/Logs/. The toggle persists
+	// file under /storage/emulated/0/StS2LauncherRedux/Logs/. The toggle persists
 	// in SharedPreferences so the next launch can re-attach the capture from
 	// onCreate, before any of our patches or the .NET runtime even boot — that
 	// way the user can collect a complete launch-to-gameplay log just by
