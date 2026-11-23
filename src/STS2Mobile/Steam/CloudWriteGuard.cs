@@ -85,8 +85,8 @@ public static class CloudWriteGuard
             {
                 reason =
                     Loc.Tr(
-                        $"빈 내용({newByteLength} bytes) 쓰기를 차단했습니다. "
-                            + "클라우드 상태를 아직 확인하지 못해 안전을 위해 보류합니다.",
+                        $"빈 데이터({newByteLength} bytes) 쓰기를 차단했습니다. "
+                            + "아직 클라우드 상태를 확인하지 못해 안전을 위해 보류했습니다.",
                         $"Blocked an empty write ({newByteLength} bytes). "
                             + "The cloud state hasn't been verified yet, so the write was held back to be safe."
                     );
@@ -111,8 +111,8 @@ public static class CloudWriteGuard
 
             reason =
                 Loc.Tr(
-                    $"빈 내용({newByteLength} bytes)이 클라우드의 기존 저장({cloudSize} bytes)을 "
-                        + "덮어쓰려 해 차단했습니다.",
+                    $"빈 데이터({newByteLength} bytes)가 클라우드의 기존 세이브({cloudSize} bytes)를 "
+                        + "덮어쓰려 해서 차단했습니다.",
                     $"Blocked an empty write ({newByteLength} bytes) that would have overwritten the existing cloud save ({cloudSize} bytes)."
                 );
             PatchHelper.Log(
@@ -265,7 +265,7 @@ public static class CloudWriteGuard
                 SyncDecision.Identical,
                 vh,
                 customSubtitle: reason,
-                customTitle: Loc.Tr("세이브 보호 — 클라우드 덮어쓰기 차단", "Save protection: cloud overwrite blocked")
+                customTitle: Loc.Tr("세이브 보호: 클라우드 덮어쓰기 차단", "Save protection: cloud overwrite blocked")
             );
             parent.AddChild(dialog);
             PatchHelper.Log($"{Tag} notified user for {canonPath}");

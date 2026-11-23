@@ -338,8 +338,8 @@ public static class LauncherPatches
                 parent,
                 false,
                 Loc.Tr(
-                    "Steam 로그인이 만료되어 클라우드 세이브 기능을 쓸 수 없습니다.\n"
-                        + "앱을 재실행한 뒤 다시 로그인해 주세요.\n(로컬 기능은 계속 사용할 수 있습니다)",
+                    "Steam 로그인이 만료되어 클라우드 세이브 기능을 사용할 수 없습니다.\n"
+                        + "앱을 다시 실행해 로그인해 주세요.\n(로컬 기능은 계속 사용할 수 있습니다)",
                     "Your Steam login has expired, so cloud save features are unavailable.\n"
                         + "Restart the app and log in again.\n(Local features are still available)"
                 ),

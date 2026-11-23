@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using Godot;
 using HarmonyLib;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Patches;
 
@@ -248,7 +249,7 @@ public static class LanMultiplayerPatcher
             if (noFriendsLabel != null)
                 _setTextAutoSize?.Invoke(
                     noFriendsLabel,
-                    new object[] { "Searching for LAN hosts..." }
+                    new object[] { Loc.Tr("LAN 호스트 검색 중...", "Searching for LAN hosts...") }
                 );
 
             // Manual IP entry row at the bottom of the screen.
@@ -257,14 +258,14 @@ public static class LanMultiplayerPatcher
             ipContainer.AddThemeConstantOverride("separation", 10);
 
             var ipEdit = new LineEdit();
-            ipEdit.PlaceholderText = "Enter host IP address";
+            ipEdit.PlaceholderText = Loc.Tr("호스트 IP 주소 입력", "Enter host IP address");
             ipEdit.Text = LoadLastIp();
             ipEdit.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
             ipEdit.AddThemeFontSizeOverride("font_size", 28);
             _ipLineEdit = ipEdit;
 
             var joinBtn = new Button();
-            joinBtn.Text = "JOIN";
+            joinBtn.Text = Loc.Tr("참가", "JOIN");
             joinBtn.CustomMinimumSize = new Vector2(100, 0);
             joinBtn.AddThemeFontSizeOverride("font_size", 28);
 
