@@ -1,0 +1,159 @@
+# Builds the signed release APK when a version tag (v*) is pushed and attaches
+# it to a DRAFT GitHub release; publishing the draft stays a manual step, so the
+# in-app update checker (releases/latest ignores drafts) only sees a release
+# once someone has looked at it. workflow_dispatch builds the APK as an
+# artifact without touching releases.
+#
+# Secrets:
+#   RELEASE_KEYSTORE_B64       base64 of the release keystore (.p12)
+#   RELEASE_KEYSTORE_PASSWORD  store/key password
+#   STS2_INPUTS_TOKEN          fine-grained token, Contents read-only, scoped to
+#                              the private repo holding sts2.dll
+#   STS2_INPUTS_REPO           owner/name of that repo (a secret, not a variable,
+#                              so it is masked in the public logs)
+# Variables:
+#   RELEASE_CERT_SHA256        optional: expected signer cert SHA-256 (hex, no colons)
+#
+# Logs of a public repo are public. Secrets are masked; sts2.dll is never
+# printed, cached (it lives in RUNNER_TEMP, outside .ci-deps) or uploaded (the
+# artifact is only the APK), and it is deleted once the build is done.
+name: Release APK
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      KEY_ALIAS: sts2launcherredux
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches export_version_name
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version="$(grep '^export_version_name=' android/gradle.properties | cut -d= -f2)"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match export_version_name=$version"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      # Caches Gradle and validates gradle-wrapper.jar against Gradle's checksums.
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+
+      - name: Cache public build inputs
+        uses: actions/cache@v4
+        with:
+          path: .ci-deps
+          key: ci-deps-${{ hashFiles('scripts/ci/fetch-build-inputs.sh') }}
+
+      # sts2.dll comes from the sts2-dll release of a private repo, read with a
+      # fine-grained, read-only token. Refresh it there when a game update
+      # changes an API the patcher uses.
+      - name: Fetch sts2.dll (compile-time reference, private)
+        env:
+          GH_TOKEN: ${{ secrets.STS2_INPUTS_TOKEN }}
+          STS2_INPUTS_REPO: ${{ secrets.STS2_INPUTS_REPO }}
+        run: |
+          if [ -z "$GH_TOKEN" ] || [ -z "$STS2_INPUTS_REPO" ]; then
+            echo "::error::STS2_INPUTS_TOKEN or STS2_INPUTS_REPO secret is not set"
+            exit 1
+          fi
+          gh release download sts2-dll -R "$STS2_INPUTS_REPO" \
+            -p sts2.dll -p sts2.deps.json -D "$RUNNER_TEMP/sts2" > /dev/null
+          echo "sts2.dll fetched"
+
+      - name: Fetch public build inputs
+        env:
+          STS2_DLL: ${{ runner.temp }}/sts2/sts2.dll
+          STS2_DEPS_JSON: ${{ runner.temp }}/sts2/sts2.deps.json
+          DEPS_CACHE: ${{ github.workspace }}/.ci-deps
+        run: bash scripts/ci/fetch-build-inputs.sh
+
+      - name: Decode the release keystore
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_B64" ]; then
+            echo "::error::RELEASE_KEYSTORE_B64 secret is not set"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+
+      - name: Build the signed APK
+        env:
+          RELEASE_KEYSTORE_FILE: ${{ runner.temp }}/release.p12
+          RELEASE_KEYSTORE_ALIAS: ${{ env.KEY_ALIAS }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          bash scripts/ci/build-apk.sh
+          version="$(grep '^export_version_name=' android/gradle.properties | cut -d= -f2)"
+          echo "APK=$GITHUB_WORKSPACE/android/build/outputs/apk/mono/release/StS2LauncherRedux-v$version.apk" >> "$GITHUB_ENV"
+
+      - name: Remove the keystore and sts2.dll
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/release.p12"
+          rm -rf "$RUNNER_TEMP/sts2" upstream/godot-export/.godot/mono/publish/arm64/sts2.*
+
+      - name: Verify the signature
+        env:
+          EXPECTED_CERT: ${{ vars.RELEASE_CERT_SHA256 }}
+        run: |
+          apksigner="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          certs="$("$apksigner" verify --print-certs "$APK")"
+          echo "$certs" | grep -E 'Signer #1 certificate (DN|SHA-256)'
+          if echo "$certs" | grep -q 'CN=Android Debug'; then
+            echo "::error::APK is signed with a debug key"
+            exit 1
+          fi
+          if [ -n "$EXPECTED_CERT" ]; then
+            got="$(echo "$certs" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+            want="$(echo "$EXPECTED_CERT" | tr -d ':' | tr 'A-F' 'a-f')"
+            [ "$got" = "$want" ] || { echo "::error::Signer cert $got != $want"; exit 1; }
+          fi
+          (cd "$(dirname "$APK")" && sha256sum "$(basename "$APK")" > "$(basename "$APK").sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: |
+            ${{ env.APK }}
+            ${{ env.APK }}.sha256
+          if-no-files-found: error
+
+      - name: Create the draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$APK" "$APK.sha256" \
+            --draft --verify-tag --generate-notes \
+            --title "StS2 Launcher Redux $GITHUB_REF_NAME"

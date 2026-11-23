@@ -16,7 +16,7 @@ public class DownloadQueueRow : PanelContainer
         vbox.AddThemeConstantOverride("separation", (int)(4 * scale));
         AddChild(vbox);
 
-        var title = entry.Item?.Title ?? entry.ModId ?? "(unknown item)";
+        var title = entry.Item?.Title ?? entry.ModId ?? Loc.Tr("(알 수 없는 아이템)", "(unknown item)");
         var titleLabel = new StyledLabel(
             title,
             scale,
@@ -28,10 +28,13 @@ public class DownloadQueueRow : PanelContainer
 
         var statusText = entry.State switch
         {
-            WorkshopDownloadState.Queued => "Queued",
-            WorkshopDownloadState.Downloading => $"Downloading {entry.ProgressPercent:F0}%",
-            WorkshopDownloadState.Completed => "Completed",
-            WorkshopDownloadState.Failed => $"Failed: {entry.Error}",
+            WorkshopDownloadState.Queued => Loc.Tr("대기 중", "Queued"),
+            WorkshopDownloadState.Downloading => Loc.Tr(
+                $"다운로드 중 {entry.ProgressPercent:F0}%",
+                $"Downloading {entry.ProgressPercent:F0}%"
+            ),
+            WorkshopDownloadState.Completed => Loc.Tr("완료", "Completed"),
+            WorkshopDownloadState.Failed => Loc.Tr($"실패: {entry.Error}", $"Failed: {entry.Error}"),
             _ => entry.State.ToString(),
         };
         var statusLabel = new StyledLabel(

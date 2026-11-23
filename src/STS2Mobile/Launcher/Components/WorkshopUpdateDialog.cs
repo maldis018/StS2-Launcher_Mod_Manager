@@ -105,7 +105,7 @@ public class WorkshopUpdateDialog : ColorRect
         }
 
         var closeButton = new StyledButton(
-            "CLOSE",
+            Loc.Tr("닫기", "CLOSE"),
             scale,
             fontSize: 14,
             height: 52,

@@ -9,7 +9,7 @@ namespace STS2Mobile.Patches;
 // Wraps the IModManagerFileIo the game hands ModManager.Initialize so any path
 // pointing into the executable-adjacent "mods" directory is transparently
 // redirected to AppPaths.ExternalModsDir (the launcher's external storage
-// folder, e.g. /storage/emulated/0/StS2LauncherMM/Mods). All other paths are
+// folder, e.g. /storage/emulated/0/StS2LauncherRedux/Mods). All other paths are
 // delegated to the original implementation so non-"mods" access (e.g. future
 // steam/workshop probes) still works.
 //

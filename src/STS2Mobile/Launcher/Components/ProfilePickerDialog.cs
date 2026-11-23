@@ -109,11 +109,11 @@ public class ProfilePickerDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", (int)(14 * scale));
         dialogBox.AddChild(vbox);
 
-        var title = new StyledLabel("Save Manager", scale, fontSize: sz.TitleFs);
+        var title = new StyledLabel(Loc.Tr("세이브 관리", "Save Manager"), scale, fontSize: sz.TitleFs);
         vbox.AddChild(title);
 
         var hint = new StyledLabel(
-            Loc.Tr("프로필별로 로컬과 Steam Cloud의 진행도를 확인하고 개별적으로 동기화할 수 있습니다.", "Compare local and Steam Cloud progress for each profile, and sync profiles individually."),
+            Loc.Tr("프로필별로 로컬과 Steam 클라우드의 진행도를 확인하고 각각 동기화할 수 있습니다.", "Compare local and Steam Cloud progress for each profile, and sync profiles individually."),
             scale,
             fontSize: sz.HintFs
         );
@@ -293,12 +293,12 @@ public class ProfilePickerDialog : ColorRect
         return slot.Decision switch
         {
             SyncDecision.MobileOnly => Loc.Tr($"로컬에만 있음 · {slot.LocalSummary.FormatSize()}", $"Local only · {slot.LocalSummary.FormatSize()}"),
-            SyncDecision.CloudOnly => Loc.Tr($"Cloud에만 있음 · {slot.CloudSummary.FormatSize()}", $"Cloud only · {slot.CloudSummary.FormatSize()}"),
+            SyncDecision.CloudOnly => Loc.Tr($"클라우드에만 있음 · {slot.CloudSummary.FormatSize()}", $"Cloud only · {slot.CloudSummary.FormatSize()}"),
             SyncDecision.Identical =>
                 Loc.Tr($"동기화됨 · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}", $"Synced · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}"),
             SyncDecision.Conflict =>
-                Loc.Tr($"로컬 {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}", $"Local {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}"),
-            SyncDecision.Unverified => Loc.Tr("일시적으로 클라우드를 확인하지 못함 · 다시 시도해 주세요", "Couldn't reach the cloud right now · Please try again"),
+                Loc.Tr($"로컬 {slot.LocalSummary.FormatSize()} / 클라우드 {slot.CloudSummary.FormatSize()}", $"Local {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}"),
+            SyncDecision.Unverified => Loc.Tr("일시적으로 클라우드를 확인하지 못했습니다. 다시 시도해 주세요.", "Couldn't reach the cloud right now · Please try again"),
             _ => "",
         };
     }

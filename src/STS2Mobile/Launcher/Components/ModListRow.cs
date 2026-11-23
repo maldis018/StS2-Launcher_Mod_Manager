@@ -47,7 +47,7 @@ public class ModListRow : PanelContainer
             topRow.AddChild(Ui.MakePill(badge, scale, Ui.TextSecondary));
 
         var detailButton = new StyledButton(
-            "DETAIL",
+            Loc.Tr("자세히", "DETAIL"),
             scale,
             fontSize: btnFont,
             height: btnHeight,

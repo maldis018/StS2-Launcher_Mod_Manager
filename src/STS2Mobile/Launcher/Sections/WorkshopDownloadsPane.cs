@@ -38,7 +38,7 @@ public class WorkshopDownloadsPane : VBoxContainer
         headerRow.AddChild(_statusLabel);
 
         _cancelAllButton = new StyledButton(
-            "CANCEL ALL",
+            Loc.Tr("모두 취소", "CANCEL ALL"),
             scale,
             fontSize: 13,
             height: 44,
@@ -73,7 +73,13 @@ public class WorkshopDownloadsPane : VBoxContainer
 
         if (_queue == null)
         {
-            SetStatus("No downloads. Steam login is required for Workshop features.", WarnColor);
+            SetStatus(
+                Loc.Tr(
+                    "다운로드가 없습니다. 창작마당을 사용하려면 Steam 로그인이 필요합니다.",
+                    "No downloads. Steam login is required for Workshop features."
+                ),
+                WarnColor
+            );
             _cancelAllButton.Disabled = true;
             return;
         }
@@ -87,15 +93,21 @@ public class WorkshopDownloadsPane : VBoxContainer
             _list.AddChild(
                 Ui.MakeEmptyState(
                     null,
-                    "No downloads.",
-                    "Workshop items you subscribe to are downloaded here.",
+                    Loc.Tr("다운로드가 없습니다.", "No downloads."),
+                    Loc.Tr(
+                        "구독한 창작마당 아이템이 여기에 다운로드됩니다.",
+                        "Workshop items you subscribe to are downloaded here."
+                    ),
                     _scale
                 )
             );
             return;
         }
 
-        SetStatus($"{entries.Count} item(s).", InfoColor);
+        SetStatus(
+            Loc.Tr($"아이템 {entries.Count}개", $"{entries.Count} item(s)."),
+            InfoColor
+        );
         foreach (var entry in entries)
             _list.AddChild(new DownloadQueueRow(entry, _scale));
     }

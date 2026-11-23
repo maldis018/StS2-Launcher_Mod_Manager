@@ -17,7 +17,7 @@ namespace STS2Mobile.Launcher.Sections;
 // mods whose folder is still present but the subscription is gone.
 public class WorkshopSubscribedPane : VBoxContainer
 {
-    public event Action<string, Action, Action> ConfirmationRequested;
+    public event ConfirmHandler ConfirmationRequested;
 
     private static readonly Color InfoColor = Ui.TextSecondary;
     private static readonly Color WarnColor = Ui.Warn;
@@ -85,7 +85,7 @@ public class WorkshopSubscribedPane : VBoxContainer
 
     private async Task SyncAsync(Func<Task<(bool ok, SteamConnection conn)>> ensureSession)
     {
-        RunOnMain(() => SetStatus(Loc.Tr("Steam 연결 중…", "Connecting to Steam…"), InfoColor));
+        RunOnMain(() => SetStatus(Loc.Tr("Steam에 연결하는 중...", "Connecting to Steam…"), InfoColor));
         var (ok, conn) = await ensureSession().ConfigureAwait(false);
         _loggedIn = ok;
         if (!ok)
@@ -95,7 +95,7 @@ public class WorkshopSubscribedPane : VBoxContainer
             {
                 SetStatus(
                     Loc.Tr(
-                        "창작마당 기능을 쓰려면 Steam 로그인이 필요합니다.",
+                        "창작마당을 사용하려면 Steam 로그인이 필요합니다.",
                         "Steam login is required for Workshop features."
                     ),
                     WarnColor
@@ -119,7 +119,7 @@ public class WorkshopSubscribedPane : VBoxContainer
             return;
         }
 
-        RunOnMain(() => SetStatus(Loc.Tr("구독 동기화 중…", "Syncing subscriptions…"), InfoColor));
+        RunOnMain(() => SetStatus(Loc.Tr("구독 정보를 동기화하는 중...", "Syncing subscriptions…"), InfoColor));
 
         WorkshopSyncPlan plan;
         try
@@ -131,7 +131,7 @@ public class WorkshopSubscribedPane : VBoxContainer
             PatchHelper.Log($"[Workshop] SUBSCRIBED sync failed: {ex}");
             RunOnMain(() =>
             {
-                SetStatus(Loc.Tr("동기화 실패(오프라인?)", "Sync failed (offline?)"), WarnColor);
+                SetStatus(Loc.Tr("동기화 실패 (오프라인?)", "Sync failed (offline?)"), WarnColor);
                 RenderList();
             });
             return;
@@ -160,16 +160,16 @@ public class WorkshopSubscribedPane : VBoxContainer
             var header =
                 updCount == 0
                     ? Loc.Tr(
-                        $"새 창작마당 모드 {newCount}개 감지 — 다운로드 중:",
+                        $"새 창작마당 모드 {newCount}개를 찾았습니다. 다운로드를 시작합니다:",
                         $"{newCount} new Workshop mod(s) detected — downloading:"
                     )
                 : newCount == 0
                     ? Loc.Tr(
-                        $"창작마당 모드 업데이트 {updCount}개 감지 — 다운로드 중:",
+                        $"창작마당 모드 업데이트 {updCount}개를 찾았습니다. 다운로드를 시작합니다:",
                         $"{updCount} Workshop mod update(s) detected — downloading:"
                     )
                 : Loc.Tr(
-                    $"신규 {newCount}개 + 업데이트 {updCount}개 — 다운로드 중:",
+                    $"새 모드 {newCount}개와 업데이트 {updCount}개를 찾았습니다. 다운로드를 시작합니다:",
                     $"{newCount} new + {updCount} updated Workshop mod(s) — downloading:"
                 );
             RunOnMain(() =>
@@ -213,15 +213,16 @@ public class WorkshopSubscribedPane : VBoxContainer
             RunOnMain(() =>
                 ConfirmationRequested?.Invoke(
                     Loc.Tr(
-                        $"다음 모드는 더 이상 Steam 에서 구독 중이 아니므로 삭제됩니다:\n{names}",
+                        $"다음 모드는 더 이상 Steam에서 구독 중이 아닙니다. 삭제할까요?\n{names}",
                         $"These mods are no longer subscribed on Steam and will be removed:\n{names}"
                     ),
                     () =>
                     {
-                        BeginBusy(Loc.Tr("정리 중…", "Cleaning up…"));
+                        BeginBusy(Loc.Tr("정리하는 중...", "Cleaning up…"));
                         _ = Task.Run(() => RemoveOrphansAsync(conn, plan));
                     },
-                    null
+                    null,
+                    okLabel: Loc.Tr("삭제", "OK")
                 )
             );
         }
@@ -257,7 +258,7 @@ public class WorkshopSubscribedPane : VBoxContainer
         {
             var loginLabel = new StyledLabel(
                 Loc.Tr(
-                    "창작마당 기능을 쓰려면 Steam 로그인이 필요합니다.",
+                    "창작마당을 사용하려면 Steam 로그인이 필요합니다.",
                     "Steam login is required for Workshop features."
                 ),
                 _scale,
@@ -307,7 +308,7 @@ public class WorkshopSubscribedPane : VBoxContainer
                         "No Workshop subscriptions yet."
                     ),
                     Loc.Tr(
-                        "WORKSHOP 탭에서 둘러보고 구독하면 자동으로 다운로드됩니다.",
+                        "창작마당 탭에서 모드를 둘러보고 구독하면 자동으로 다운로드됩니다.",
                         "Browse the WORKSHOP tab and subscribe — items download automatically."
                     ),
                     _scale
@@ -398,7 +399,7 @@ public class WorkshopSubscribedPane : VBoxContainer
             {
                 status = disabledUpdate
                     ? Loc.Tr(
-                        "비활성 · 업데이트 있음 — 활성화 후 다운로드",
+                        "비활성 · 업데이트 있음 (활성화하면 다운로드됩니다)",
                         "Disabled · update available — enable to download"
                     )
                     : Loc.Tr("비활성", "Disabled");
@@ -454,8 +455,8 @@ public class WorkshopSubscribedPane : VBoxContainer
 
         BeginBusy(
             info.Disabled
-                ? Loc.Tr($"'{entry.Id}' 활성화 중…", $"Enabling '{entry.Id}'…")
-                : Loc.Tr($"'{entry.Id}' 비활성화 중…", $"Disabling '{entry.Id}'…")
+                ? Loc.Tr($"'{entry.Id}' 활성화하는 중...", $"Enabling '{entry.Id}'…")
+                : Loc.Tr($"'{entry.Id}' 비활성화하는 중...", $"Disabling '{entry.Id}'…")
         );
 
         if (!info.Disabled)
@@ -463,7 +464,7 @@ public class WorkshopSubscribedPane : VBoxContainer
             var (ok, error) = ModStasher.Disable(info);
             SetStatus(
                 ok
-                    ? Loc.Tr($"'{entry.Id}' 비활성화됨(보관).", $"'{entry.Id}' disabled (stashed).")
+                    ? Loc.Tr($"'{entry.Id}' 비활성화됨 (보관).", $"'{entry.Id}' disabled (stashed).")
                     : error,
                 ok ? InfoColor : WarnColor
             );
@@ -487,7 +488,7 @@ public class WorkshopSubscribedPane : VBoxContainer
         {
             ConfirmationRequested?.Invoke(
                 Loc.Tr(
-                    $"'{entry.Id}'의 최신 창작마당 버전이 있습니다. 지금 받을까요?\n(나중에: 다음 동기화 때 자동 업데이트됩니다.)",
+                    $"'{entry.Id}' 모드의 최신 창작마당 버전이 있습니다. 지금 받을까요?\n(지금 받지 않아도 다음 동기화 때 자동으로 업데이트됩니다.)",
                     $"A newer Workshop version of '{entry.Id}' is available. Download it now?\n(Later: it will auto-update on the next sync.)"
                 ),
                 () =>
@@ -496,7 +497,9 @@ public class WorkshopSubscribedPane : VBoxContainer
                     _queue?.Enqueue(updatedItem);
                     RunOnMain(RenderList);
                 },
-                null
+                null,
+                okLabel: Loc.Tr("받기", "OK"),
+                cancelLabel: Loc.Tr("나중에", "Cancel")
             );
         }
     }
@@ -527,7 +530,7 @@ public class WorkshopSubscribedPane : VBoxContainer
         _list.AddChild(
             Ui.MakeSectionHeader(
                 Loc.Tr(
-                    "수동 설치본 존재 — 창작마당 버전 미적용",
+                    "수동 설치본 있음 · 창작마당 버전 미적용",
                     "ALSO INSTALLED MANUALLY — WORKSHOP COPY NOT APPLIED"
                 ),
                 _scale
@@ -564,11 +567,14 @@ public class WorkshopSubscribedPane : VBoxContainer
                 : LauncherModel.VersionLabel(c.WorkshopVersion);
             var cmp = CompareVersions(c.WorkshopVersion, c.InstalledVersion);
             var note =
-                cmp > 0 ? " — Workshop is newer"
-                : cmp < 0 ? " — your copy is newer"
-                : " — same version";
+                cmp > 0 ? Loc.Tr(" · 창작마당 쪽이 최신", " — Workshop is newer")
+                : cmp < 0 ? Loc.Tr(" · 설치된 쪽이 최신", " — your copy is newer")
+                : Loc.Tr(" · 같은 버전", " — same version");
             var verLabel = new StyledLabel(
-                $"installed {installed} · Workshop {workshop}{note}",
+                Loc.Tr(
+                    $"설치됨 {installed} · 창작마당 {workshop}{note}",
+                    $"installed {installed} · Workshop {workshop}{note}"
+                ),
                 _scale,
                 fontSize: Ui.FontMicro,
                 align: HorizontalAlignment.Left
@@ -577,7 +583,7 @@ public class WorkshopSubscribedPane : VBoxContainer
             info.AddChild(verLabel);
 
             var useBtn = new StyledButton(
-                "USE WORKSHOP",
+                Loc.Tr("창작마당 버전 사용", "USE WORKSHOP"),
                 _scale,
                 fontSize: Ui.FontCaption,
                 height: 44,
@@ -599,15 +605,16 @@ public class WorkshopSubscribedPane : VBoxContainer
             : LauncherModel.VersionLabel(c.WorkshopVersion);
         ConfirmationRequested?.Invoke(
             Loc.Tr(
-                $"수동 설치된 '{c.ModId}'을(를) 창작마당 버전({ver})으로 교체할까요?\n수동 설치 폴더는 삭제됩니다.",
+                $"수동 설치된 '{c.ModId}' 모드를 창작마당 버전으로 교체할까요? (버전: {ver})\n수동 설치 폴더는 삭제됩니다.",
                 $"Replace your manually installed '{c.ModId}' with the Workshop version ({ver})?\nYour manual copy's folder will be removed."
             ),
             () =>
             {
-                BeginBusy(Loc.Tr($"'{c.ModId}' 교체 중…", $"Switching '{c.ModId}'…"));
+                BeginBusy(Loc.Tr($"'{c.ModId}' 교체하는 중...", $"Switching '{c.ModId}'…"));
                 _ = Task.Run(() => DoUseWorkshopAsync(c));
             },
-            null
+            null,
+            okLabel: Loc.Tr("교체", "OK")
         );
     }
 
@@ -675,24 +682,26 @@ public class WorkshopSubscribedPane : VBoxContainer
     private void OnUnsubscribePressed(ModConfigEntry entry) =>
         ConfirmationRequested?.Invoke(
             Loc.Tr(
-                $"'{entry.Id}' 구독을 해제할까요? 기기에서 모드가 삭제됩니다.",
+                $"'{entry.Id}' 구독을 취소할까요? 기기에서 모드가 삭제됩니다.",
                 $"Unsubscribe from '{entry.Id}'? This removes the mod from your device."
             ),
             () =>
             {
-                BeginBusy(Loc.Tr($"'{entry.Id}' 구독 해제 중…", $"Unsubscribing '{entry.Id}'…"));
+                BeginBusy(Loc.Tr($"'{entry.Id}' 구독을 취소하는 중...", $"Unsubscribing '{entry.Id}'…"));
                 _ = Task.Run(() => DoUnsubscribeAsync(entry));
             },
-            null
+            null,
+            okLabel: Loc.Tr("구독 취소", "OK"),
+            cancelLabel: Loc.Tr("닫기", "Cancel")
         );
 
     // Unsubscribe for an in-flight (not yet installed) subscription row.
     private void OnUnsubscribePfidPressed(WorkshopItemDetails item) =>
         ConfirmationRequested?.Invoke(
-            Loc.Tr($"'{item.Title}' 구독을 해제할까요?", $"Unsubscribe from '{item.Title}'?"),
+            Loc.Tr($"'{item.Title}' 구독을 취소할까요?", $"Unsubscribe from '{item.Title}'?"),
             () =>
             {
-                BeginBusy(Loc.Tr("구독 해제 중…", "Unsubscribing…"));
+                BeginBusy(Loc.Tr("구독을 취소하는 중...", "Unsubscribing…"));
                 _ = Task.Run(async () =>
                 {
                     if (_connection != null)
@@ -715,7 +724,9 @@ public class WorkshopSubscribedPane : VBoxContainer
                     });
                 });
             },
-            null
+            null,
+            okLabel: Loc.Tr("구독 취소", "OK"),
+            cancelLabel: Loc.Tr("닫기", "Cancel")
         );
 
     // Detail for an in-flight subscription (Workshop metadata already in hand).

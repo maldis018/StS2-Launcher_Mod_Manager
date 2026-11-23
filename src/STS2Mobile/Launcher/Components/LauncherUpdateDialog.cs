@@ -32,7 +32,11 @@ public class LauncherUpdateDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", (int)(14 * scale));
         dialogBox.AddChild(vbox);
 
-        var title = new StyledLabel($"Downloading launcher v{version}...", scale, fontSize: 16);
+        var title = new StyledLabel(
+            Loc.Tr($"런처 v{version} 다운로드 중...", $"Downloading launcher v{version}..."),
+            scale,
+            fontSize: 16
+        );
         title.HorizontalAlignment = HorizontalAlignment.Center;
         title.CustomMinimumSize = new Vector2((int)(360 * scale), 0);
         vbox.AddChild(title);
@@ -44,7 +48,11 @@ public class LauncherUpdateDialog : ColorRect
         _progressBar.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         vbox.AddChild(_progressBar);
 
-        _statusLabel = new StyledLabel("Starting download...", scale, fontSize: 13);
+        _statusLabel = new StyledLabel(
+            Loc.Tr("다운로드를 시작하는 중...", "Starting download..."),
+            scale,
+            fontSize: 13
+        );
         _statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
         vbox.AddChild(_statusLabel);
 
@@ -53,7 +61,7 @@ public class LauncherUpdateDialog : ColorRect
         buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
         vbox.AddChild(buttonRow);
 
-        var cancelButton = new StyledButton("Cancel", scale, fontSize: 14, height: 44);
+        var cancelButton = new StyledButton(Loc.Tr("취소", "Cancel"), scale, fontSize: 14, height: 44);
         cancelButton.CustomMinimumSize = new Vector2(
             (int)(120 * scale),
             cancelButton.CustomMinimumSize.Y
@@ -75,12 +83,15 @@ public class LauncherUpdateDialog : ColorRect
         {
             _progressBar.Value = percentage;
             _statusLabel.Text =
-                $"{LauncherModel.FormatSize(downloadedBytes)} / {LauncherModel.FormatSize(totalBytes)} ({percentage:F1}%)";
+                $"{Loc.Size(downloadedBytes)} / {Loc.Size(totalBytes)} ({percentage:F1}%)";
         }
         else
         {
             _progressBar.Value = 0;
-            _statusLabel.Text = $"{LauncherModel.FormatSize(downloadedBytes)} downloaded";
+            _statusLabel.Text = Loc.Tr(
+                $"{Loc.Size(downloadedBytes)} 다운로드됨",
+                $"{LauncherModel.FormatSize(downloadedBytes)} downloaded"
+            );
         }
     }
 

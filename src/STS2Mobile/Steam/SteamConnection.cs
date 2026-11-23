@@ -177,7 +177,7 @@ public class SteamConnection : IDisposable
                 ? new SteamAuthExpiredException(
                     Loc.Tr("Steam 로그인이 만료되었거나 취소되었습니다. 다시 로그인해 주세요.", "Your Steam login expired or was canceled. Please log in again.")
                 )
-                : new SteamLoginException($"Login failed: {cb.Result}");
+                : new SteamLoginException(Loc.Tr($"로그인 실패: {cb.Result}", $"Login failed: {cb.Result}"));
             _connectedGate.Set();
         });
     }
@@ -468,7 +468,7 @@ public class SteamConnection : IDisposable
         }
     }
 
-    // Fetches an item's change-notes ("업데이트 노트") — the author's dated update
+    // Fetches an item's change-notes ("변경 사항"): the author's dated update
     // log — for the detail page. Newest-first as Steam returns it; capped at `count`
     // entries. Returns an empty list when the item has no change history.
     public async Task<List<WorkshopChangeEntry>> GetChangeHistoryAsync(

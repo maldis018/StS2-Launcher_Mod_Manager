@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Godot;
 using STS2Mobile.Debug;
 using STS2Mobile.Launcher.Components;
+using STS2Mobile.Launcher.Sections;
 using STS2Mobile.Patches;
 using STS2Mobile.Steam;
 
@@ -31,7 +32,7 @@ public class LauncherController
     // Set once the offline PLAY stage is up; later progress states of the
     // still-running connection attempt must not wipe it.
     private bool _offlineLaunchShown;
-    private string _lastLaunchText = "LAUNCH";
+    private string _lastLaunchText = Loc.Tr("게임 시작", "LAUNCH");
     private bool _lastShowCloudSync;
     private bool _lastShowUpdate;
 
@@ -161,7 +162,12 @@ public class LauncherController
             _runOnMainThread(() =>
             {
                 bool wasBranchSwitch = _pendingBranchSwitch;
-                _view.SetStatus("Download complete! Restart to play.");
+                _view.SetStatus(
+                    Loc.Tr(
+                        "다운로드가 완료되었습니다. 게임을 시작하려면 앱을 재시작하세요.",
+                        "Download complete! Restart to play."
+                    )
+                );
                 _view.Download.Visible = false;
                 // Issue #45: 브랜치 전환 직후 다운로드 완료라면 dst dll 과 mismatch
                 // 위험 — Play 가 아니라 명시적 재시작이 유일한 안전 경로.
@@ -205,7 +211,7 @@ public class LauncherController
                     _view.Download.Reset();
                     return;
                 }
-                _view.SetStatus($"Download failed: {msg}");
+                _view.SetStatus(Loc.Tr($"다운로드 실패: {msg}", $"Download failed: {msg}"));
                 if (_model.LastDownloadFailureFatal && LauncherModel.HasPendingDownload())
                 {
                     // Retrying the saved branch would fail the same way (for
@@ -213,13 +219,14 @@ public class LauncherController
                     // PLAY hidden, so let the player pick a branch again.
                     _pickBranchOnResume = true;
                     _view.SetStatus(
-                        $"Download failed: {msg}\n"
+                        Loc.Tr($"다운로드 실패: {msg}", $"Download failed: {msg}")
+                            + "\n"
                             + Loc.Tr(
                                 "다시 시도하거나 다른 브랜치를 선택하세요.",
                                 "Choose a branch to try again."
                             )
                     );
-                    _view.Download.Reset("CHOOSE BRANCH");
+                    _view.Download.Reset(ChooseBranchText);
                     return;
                 }
                 _view.Download.Reset(ResumeOrRetryButtonText());
@@ -227,7 +234,7 @@ public class LauncherController
         _model.DownloadCancelled += () =>
             _runOnMainThread(() =>
             {
-                _view.SetStatus("Download cancelled");
+                _view.SetStatus(Loc.Tr("다운로드가 취소되었습니다", "Download cancelled"));
                 _view.Download.SetPauseVisible(false);
                 _view.Download.SetButtonDisabled(false);
             });
@@ -269,18 +276,18 @@ public class LauncherController
                 {
                     _view.Actions.HideAll();
                     _view.Download.Visible = true;
-                    _view.Download.Reset("UPDATE GAME FILES");
-                    _view.SetStatus("Update available!");
+                    _view.Download.Reset(Loc.Tr("게임 파일 업데이트", "UPDATE GAME FILES"));
+                    _view.SetStatus(Loc.Tr("업데이트가 있습니다", "Update available!"));
                 }
                 else
                 {
-                    _view.Actions.SetGameUpdateButtonText("UP TO DATE");
+                    _view.Actions.SetGameUpdateButtonText(Loc.Tr("최신 버전", "UP TO DATE"));
                 }
             });
         _model.UpdateCheckFailed += msg =>
             _runOnMainThread(() =>
             {
-                _view.Actions.SetGameUpdateButtonText("CHECK FAILED");
+                _view.Actions.SetGameUpdateButtonText(Loc.Tr("확인 실패", "CHECK FAILED"));
                 _view.Actions.SetGameUpdateButtonDisabled(false);
                 _view.AppendLog($"Update check failed: {msg}");
             });
@@ -314,7 +321,7 @@ public class LauncherController
         // Issue #36 Part A: Local Backup is no longer a persisted toggle —
         // there's nothing to restore on boot. It's a one-shot action button
         // (OnLocalBackupPressed) that snapshots the save tree on demand.
-        // Always ensure the external StS2LauncherMM/{Mods,Saves} tree exists when
+        // Always ensure the external StS2LauncherRedux/{Mods,Saves} tree exists when
         // the user has granted storage permission — the Mods directory in
         // particular is needed for ModLoaderPatches to find user-installed mods,
         // independently of the Local Backup toggle. Internally a no-op when
@@ -325,11 +332,18 @@ public class LauncherController
         var result = _model.StartSession();
         HandleFastPath(result);
         MaybePromptStoragePermission();
+        OfferLegacyImportIfNeeded();
     }
+
+    // One-time offer to copy mods/backups/config from the old StS2LauncherMM
+    // folder. LauncherUI also calls it once All Files Access turns up, so it fires
+    // right after the user grants it from the system settings page.
+    public void OfferLegacyImportIfNeeded() =>
+        LegacyImportFlow.MaybeOfferOnStartup(_view.RootControl, _view.Scale);
 
     // Re-prompt every launch until storage permission is actually granted.
     // Mods, save backup, and debug logs all live under
-    // /storage/emulated/0/StS2LauncherMM/, so a stuck-on-no state silently
+    // /storage/emulated/0/StS2LauncherRedux/, so a stuck-on-no state silently
     // breaks half the launcher. The previous one-time marker meant a single
     // misclick on Cancel left the user permanently locked out with no way
     // back from inside the launcher.
@@ -339,9 +353,15 @@ public class LauncherController
             return;
 
         _view.ShowConfirmation(
-            "Allow 'All Files Access'?\n\nNeeded for installing mods, saving local game backups, and writing debug logs under /storage/emulated/0/StS2LauncherMM/.\n\nIf you cancel, this prompt will appear again on the next launch.",
+            Loc.Tr(
+                "'모든 파일 액세스'를 허용할까요?\n\n"
+                    + "모드 설치, 로컬 세이브 백업, 디버그 로그 저장에 필요하며 /storage/emulated/0/StS2LauncherRedux/ 폴더를 사용합니다.\n\n"
+                    + "취소하면 다음 실행 때 다시 묻습니다.",
+                "Allow 'All Files Access'?\n\nNeeded for installing mods, saving local game backups, and writing debug logs under /storage/emulated/0/StS2LauncherRedux/.\n\nIf you cancel, this prompt will appear again on the next launch."
+            ),
             onConfirmed: AppPaths.RequestStoragePermission,
-            onCancelled: null
+            onCancelled: null,
+            okLabel: Loc.Tr("허용", "OK")
         );
     }
 
@@ -367,12 +387,11 @@ public class LauncherController
                 }
                 _view.SetStatus(
                     _model.SavedTokenExpiringSoon
-                        ? $"Welcome back, {_model.AccountName} "
-                            + Loc.Tr(
-                                "(Steam 로그인 곧 만료 — 재로그인 권장)",
-                                "(Steam login expires soon; consider logging in again)"
-                            )
-                        : $"Welcome back, {_model.AccountName}"
+                        ? Loc.Tr(
+                            $"{_model.AccountName}님, 환영합니다. Steam 로그인이 곧 만료되니 다시 로그인해 주세요.",
+                            $"Welcome back, {_model.AccountName} (Steam login expires soon; consider logging in again)"
+                        )
+                        : WelcomeText()
                 );
                 var text = ResolveLaunchButtonText();
                 ShowLaunchStage(text, showCloudSync: true, showUpdate: true);
@@ -393,7 +412,7 @@ public class LauncherController
 
     private string LoginPrompt =>
         _passwordLoginMode
-            ? "Enter your Steam credentials"
+            ? Loc.Tr("Steam 계정 정보를 입력하세요", "Enter your Steam credentials")
             : Loc.Tr("Steam에 로그인하세요", "Sign in to Steam");
 
     private void ShowLoginStage(string status)
@@ -507,7 +526,7 @@ public class LauncherController
 
         PatchHelper.Log("[Mods] Save Manager button tapped");
         _view.SetCloudOpBusy(true);
-        _view.SetStatus("Save Manager");
+        _view.SetStatus(Loc.Tr("세이브 관리", "Save Manager"));
         try
         {
             await LauncherPatches.OpenSaveSyncDialogAsync(_view.RootControl);
@@ -530,7 +549,7 @@ public class LauncherController
         if (BlockIfTokenExpired())
             return;
         PatchHelper.Log("[Mods] Mod Manager button tapped");
-        _view.SetStatus("Mod Manager");
+        _view.SetStatus(Loc.Tr("모드 관리", "Mod Manager"));
         _view.ShowModManager();
     }
 
@@ -542,16 +561,19 @@ public class LauncherController
         if (_view.ModManager.HasActiveDownload)
         {
             _view.ShowConfirmation(
-                "A Workshop download is still in progress. Leaving the Mod Manager will "
-                    + "cancel it. Leave anyway?",
+                Loc.Tr(
+                    "창작마당 다운로드가 진행 중입니다. 모드 관리에서 나가면 다운로드가 취소됩니다. 나갈까요?",
+                    "A Workshop download is still in progress. Leaving the Mod Manager will "
+                        + "cancel it. Leave anyway?"
+                ),
                 onConfirmed: () =>
                 {
                     _view.ModManager.CancelDownloads();
                     CloseModManager();
                 },
                 onCancelled: null,
-                okLabel: "Leave",
-                cancelLabel: "Stay"
+                okLabel: Loc.Tr("나가기", "Leave"),
+                cancelLabel: Loc.Tr("계속 다운로드", "Stay")
             );
             return;
         }
@@ -575,7 +597,7 @@ public class LauncherController
         // so we can't rely on SessionState==LoggedIn to know if we were on the launch screen.
         if (_launchStageShown)
         {
-            _view.SetStatus($"Welcome back, {_model.AccountName}");
+            _view.SetStatus(WelcomeText());
             ShowLaunchStage(_lastLaunchText, _lastShowCloudSync, _lastShowUpdate);
         }
         else
@@ -613,7 +635,12 @@ public class LauncherController
             {
                 _runOnMainThread(() =>
                 {
-                    _view.SetStatus("Connection failed. Internet required for first launch.");
+                    _view.SetStatus(
+                        Loc.Tr(
+                            "연결에 실패했습니다. 처음 실행할 때는 인터넷 연결이 필요합니다.",
+                            "Connection failed. Internet required for first launch."
+                        )
+                    );
                     _view.Actions.ShowRetry();
                 });
             }
@@ -713,7 +740,7 @@ public class LauncherController
         switch (state)
         {
             case SessionState.Connecting:
-                _view.SetStatus("Connecting to Steam...");
+                _view.SetStatus(Loc.Tr("Steam에 연결하는 중...", "Connecting to Steam..."));
                 break;
 
             case SessionState.WaitingForCredentials:
@@ -721,16 +748,18 @@ public class LauncherController
                 break;
 
             case SessionState.Authenticating:
-                _view.SetStatus("Authenticating...");
+                _view.SetStatus(Loc.Tr("인증하는 중...", "Authenticating..."));
                 break;
 
             case SessionState.VerifyingOwnership:
-                _view.SetStatus("Verifying game ownership...");
+                _view.SetStatus(Loc.Tr("게임 보유 여부를 확인하는 중...", "Verifying game ownership..."));
                 break;
 
             case SessionState.LoggedIn:
                 _model.ConnectionResolved = true;
-                _view.SetStatus($"Logged in as {_model.AccountName}");
+                _view.SetStatus(
+                    Loc.Tr($"{_model.AccountName} 계정으로 로그인됨", $"Logged in as {_model.AccountName}")
+                );
                 if (_model.IsDownloadRunning)
                 {
                     // A reconnect mid-download: leave the progress UI alone.
@@ -748,7 +777,7 @@ public class LauncherController
                     );
                     _view.Download.Visible = true;
                     _view.Download.Reset(
-                        _pickBranchOnResume ? "CHOOSE BRANCH" : ResumeOrRetryButtonText()
+                        _pickBranchOnResume ? ChooseBranchText : ResumeOrRetryButtonText()
                     );
                 }
                 else if (LauncherModel.GameFilesReady())
@@ -773,7 +802,7 @@ public class LauncherController
                     _view.Actions.ShowRetry();
                     break;
                 }
-                ShowLoginStage($"Error: {_model.FailReason}");
+                ShowLoginStage(Loc.Tr($"오류: {_model.FailReason}", $"Error: {_model.FailReason}"));
                 break;
 
             case SessionState.Disconnected:
@@ -791,7 +820,7 @@ public class LauncherController
 
     private void OnCodeSubmitPressed(string code)
     {
-        _view.SetStatus("Verifying code...");
+        _view.SetStatus(Loc.Tr("코드를 확인하는 중...", "Verifying code..."));
         _model.SubmitCode(code);
     }
 
@@ -808,7 +837,7 @@ public class LauncherController
             return;
         }
 
-        _view.Download.ShowProgress("Loading branches...");
+        _view.Download.ShowProgress(Loc.Tr("브랜치를 불러오는 중...", "Loading branches..."));
 
         System.Collections.Generic.List<SteamBranchInfo> branches;
         try
@@ -840,7 +869,9 @@ public class LauncherController
 
         LauncherModel.SaveSelectedBranch(picked);
         _view.Download.ShowProgress(
-            picked == "public" ? "Connecting to Steam..." : $"Connecting to Steam ({picked})..."
+            picked == "public"
+                ? Loc.Tr("Steam에 연결하는 중...", "Connecting to Steam...")
+                : Loc.Tr($"Steam에 연결하는 중 ({picked})...", $"Connecting to Steam ({picked})...")
         );
         await RunDownloadAsync(picked);
     }
@@ -879,7 +910,7 @@ public class LauncherController
             DownloadPhase.Verifying => Loc.Tr("기존 파일 확인 중...", "Verifying existing files..."),
             DownloadPhase.Finishing => Loc.Tr("마무리 중...", "Finishing up..."),
             _ =>
-                $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)",
+                $"{Loc.Size(p.DownloadedBytes)} / {Loc.Size(p.TotalBytes)} ({p.Percentage:F1}%)",
         };
 
     // Used for the status line and the notification (the latter on the model's
@@ -898,17 +929,19 @@ public class LauncherController
     {
         var pending = LauncherModel.ReadPendingDownload();
         if (pending == null)
-            return "RETRY DOWNLOAD";
+            return Loc.Tr("다운로드 다시 시도", "RETRY DOWNLOAD");
         return pending.TotalBytes > 0
-            ? $"RESUME DOWNLOAD ({pending.Percentage:F0}%)"
-            : "RESUME DOWNLOAD";
+            ? Loc.Tr($"이어받기 ({pending.Percentage:F0}%)", $"RESUME DOWNLOAD ({pending.Percentage:F0}%)")
+            : Loc.Tr("이어받기", "RESUME DOWNLOAD");
     }
+
+    private static string ChooseBranchText => Loc.Tr("브랜치 선택", "CHOOSE BRANCH");
 
     private async void OnCheckGameUpdatePressed()
     {
         _checkingForGameUpdate = true;
         _view.Actions.SetGameUpdateButtonDisabled(true);
-        _view.Actions.SetGameUpdateButtonText("Loading branches...");
+        _view.Actions.SetGameUpdateButtonText(Loc.Tr("불러오는 중...", "Loading branches..."));
 
         System.Collections.Generic.List<SteamBranchInfo> branches;
         try
@@ -949,7 +982,10 @@ public class LauncherController
         if (picked != current && LauncherModel.GameFilesReady())
         {
             var confirmed = await ConfirmAsync(
-                $"Switch to '{picked}'?\n\nGame files (~3GB) will be redownloaded. Login and saves are kept."
+                Loc.Tr(
+                    $"'{picked}' 브랜치로 변경할까요?\n\n게임 파일(약 3GB)을 다시 받습니다. 로그인 정보와 세이브는 유지됩니다.",
+                    $"Switch to '{picked}'?\n\nGame files (~3GB) will be redownloaded. Login and saves are kept."
+                )
             );
             if (!confirmed)
             {
@@ -966,15 +1002,22 @@ public class LauncherController
             {
                 _view.Actions.HideAll();
                 _view.Download.Visible = true;
-                _view.Download.Reset("DOWNLOAD GAME FILES");
-                _view.SetStatus($"Switched to {picked}. Tap DOWNLOAD GAME FILES to redownload.");
+                _view.Download.Reset();
+                _view.SetStatus(
+                    Loc.Tr(
+                        $"'{picked}' 브랜치로 변경했습니다. 다시 받으려면 '{DownloadSection.DownloadLabel}'를 누르세요.",
+                        $"Switched to {picked}. Tap DOWNLOAD GAME FILES to redownload."
+                    )
+                );
             });
             _checkingForGameUpdate = false;
             return;
         }
 
         _view.Actions.SetGameUpdateButtonText(
-            picked == "public" ? "Checking..." : $"Checking {picked}..."
+            picked == "public"
+                ? Loc.Tr("확인 중...", "Checking...")
+                : Loc.Tr($"{picked} 확인 중...", $"Checking {picked}...")
         );
 
         await _model.CheckForUpdatesAsync(picked);
@@ -983,7 +1026,7 @@ public class LauncherController
     }
 
     private const string ReleasesPageUrl =
-        "https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases/latest";
+        "https://github.com/maldis018/sts2-launcher-redux/releases/latest";
 
     private async void OnCheckLauncherUpdatePressed() =>
         await RunLauncherUpdateCheck(showLatestDialog: true);
@@ -1003,7 +1046,7 @@ public class LauncherController
             return;
         _checkingForLauncherUpdate = true;
         _view.Actions.SetLauncherUpdateButtonDisabled(true);
-        _view.Actions.SetLauncherUpdateButtonText("Checking...");
+        _view.Actions.SetLauncherUpdateButtonText(Loc.Tr("확인 중...", "Checking..."));
         PatchHelper.Log("[Launcher] Checking for launcher update...");
 
         AppUpdateResult result;
@@ -1017,11 +1060,14 @@ public class LauncherController
             _runOnMainThread(() =>
             {
                 _view.AppendLog($"Launcher update check failed: {ex.Message}");
-                _view.Actions.SetLauncherUpdateButtonText("CHECK LAUNCHER UPDATE");
+                _view.Actions.SetLauncherUpdateButtonText(ActionSection.LauncherUpdateLabel);
                 _view.Actions.SetLauncherUpdateButtonDisabled(false);
                 if (showLatestDialog)
                     _view.ShowConfirmation(
-                        $"Failed to check for launcher updates.\n\n{ex.Message}",
+                        Loc.Tr(
+                            $"런처 업데이트를 확인하지 못했습니다.\n\n{ex.Message}",
+                            $"Failed to check for launcher updates.\n\n{ex.Message}"
+                        ),
                         onConfirmed: () => { },
                         onCancelled: null
                     );
@@ -1038,13 +1084,18 @@ public class LauncherController
         {
             _runOnMainThread(() =>
             {
-                _view.Actions.SetLauncherUpdateButtonText("CHECK LAUNCHER UPDATE");
+                _view.Actions.SetLauncherUpdateButtonText(ActionSection.LauncherUpdateLabel);
                 _view.Actions.SetLauncherUpdateButtonDisabled(false);
                 if (showLatestDialog)
                     _view.ShowConfirmation(
-                        "You're already on the latest launcher version.\n\nOpen the GitHub releases page anyway?",
+                        Loc.Tr(
+                            "이미 최신 버전의 런처입니다.\n\nGitHub 릴리스 페이지를 열어 볼까요?",
+                            "You're already on the latest launcher version.\n\nOpen the GitHub releases page anyway?"
+                        ),
                         onConfirmed: () => OS.ShellOpen(ReleasesPageUrl),
-                        onCancelled: null
+                        onCancelled: null,
+                        okLabel: Loc.Tr("열기", "OK"),
+                        cancelLabel: Loc.Tr("닫기", "Cancel")
                     );
             });
             _checkingForLauncherUpdate = false;
@@ -1053,7 +1104,9 @@ public class LauncherController
 
         _runOnMainThread(() =>
         {
-            _view.Actions.SetLauncherUpdateButtonText($"v{result.LatestVersion} available");
+            _view.Actions.SetLauncherUpdateButtonText(
+                Loc.Tr($"v{result.LatestVersion} 업데이트 가능", $"v{result.LatestVersion} available")
+            );
             _view.Actions.SetLauncherUpdateButtonDisabled(false);
             PromptLauncherUpdate(result);
         });
@@ -1066,9 +1119,13 @@ public class LauncherController
         if (string.IsNullOrEmpty(result.DownloadUrl))
         {
             _view.ShowConfirmation(
-                $"Launcher v{result.LatestVersion} is available, but no APK asset was attached.\n\nOpen the GitHub releases page in a browser?",
+                Loc.Tr(
+                    $"런처 v{result.LatestVersion} 업데이트가 있지만 릴리스에 APK 파일이 첨부되어 있지 않습니다.\n\n브라우저에서 GitHub 릴리스 페이지를 열까요?",
+                    $"Launcher v{result.LatestVersion} is available, but no APK asset was attached.\n\nOpen the GitHub releases page in a browser?"
+                ),
                 onConfirmed: () => OS.ShellOpen(ReleasesPageUrl),
-                onCancelled: null
+                onCancelled: null,
+                okLabel: Loc.Tr("열기", "OK")
             );
             return;
         }
@@ -1078,9 +1135,13 @@ public class LauncherController
         if (!AppUpdateInstaller.CanRequestInstallPackages())
         {
             _view.ShowConfirmation(
-                $"Launcher v{result.LatestVersion} is available.\n\nTo install it, allow this app to install other apps. Open system settings?",
+                Loc.Tr(
+                    $"런처 v{result.LatestVersion} 업데이트가 있습니다.\n\n설치하려면 이 앱이 다른 앱을 설치하도록 허용해야 합니다. 시스템 설정을 열까요?",
+                    $"Launcher v{result.LatestVersion} is available.\n\nTo install it, allow this app to install other apps. Open system settings?"
+                ),
                 onConfirmed: AppUpdateInstaller.RequestInstallPackagesPermission,
-                onCancelled: null
+                onCancelled: null,
+                okLabel: Loc.Tr("설정 열기", "OK")
             );
             return;
         }
@@ -1089,12 +1150,20 @@ public class LauncherController
         // shown verbatim if present. Authors keep these short — the full
         // changelog lives on the GitHub release page.
         var msg = string.IsNullOrEmpty(result.ReleaseNotes)
-            ? $"Launcher v{result.LatestVersion} is available.\n\nDownload and install now?"
-            : $"Launcher v{result.LatestVersion} is available.\n\n{result.ReleaseNotes}\n\nDownload and install now?";
+            ? Loc.Tr(
+                $"런처 v{result.LatestVersion} 업데이트가 있습니다.\n\n지금 다운로드해 설치할까요?",
+                $"Launcher v{result.LatestVersion} is available.\n\nDownload and install now?"
+            )
+            : Loc.Tr(
+                $"런처 v{result.LatestVersion} 업데이트가 있습니다.\n\n{result.ReleaseNotes}\n\n지금 다운로드해 설치할까요?",
+                $"Launcher v{result.LatestVersion} is available.\n\n{result.ReleaseNotes}\n\nDownload and install now?"
+            );
         _view.ShowConfirmation(
             msg,
             onConfirmed: () => StartLauncherDownload(result),
-            onCancelled: null
+            onCancelled: null,
+            okLabel: Loc.Tr("업데이트", "OK"),
+            cancelLabel: Loc.Tr("나중에", "Cancel")
         );
     }
 
@@ -1163,7 +1232,7 @@ public class LauncherController
 
     private void ResetGameUpdateButton()
     {
-        _view.Actions.SetGameUpdateButtonText("CHECK GAME UPDATE");
+        _view.Actions.SetGameUpdateButtonText(ActionSection.GameUpdateLabel);
         _view.Actions.SetGameUpdateButtonDisabled(false);
     }
 
@@ -1255,12 +1324,12 @@ public class LauncherController
     {
         _view.ShowConfirmation(
             Loc.Tr(
-                "이미지 인덱스 캐시 정리\n\n"
-                    + "포션 / 카드 / 유물 등 이미지가 잘못 표시될 때 사용하세요.\n"
-                    + "게임 텍스처 캐시(약 660개) 를 삭제하고 앱을 재시작합니다.\n\n"
-                    + "* 다음 실행이 30~60초 더 걸립니다 (재import)\n"
-                    + "* 게임을 다시 다운로드하지 않습니다\n"
-                    + "* 세이브 / 진행도 / 로그인 정보는 보존됩니다",
+                "이미지 캐시 삭제\n\n"
+                    + "카드, 유물, 포션 등의 이미지가 잘못 표시될 때 사용하세요.\n"
+                    + "게임 텍스처 캐시(약 660개)를 삭제하고 앱을 재시작합니다.\n\n"
+                    + "· 다음 실행이 30~60초 더 걸립니다 (텍스처를 다시 변환합니다)\n"
+                    + "· 게임을 다시 다운로드하지 않습니다\n"
+                    + "· 세이브, 진행도, 로그인 정보는 유지됩니다",
                 "Clear image index cache\n\n"
                     + "Use this if potion, card, or relic images look wrong.\n"
                     + "This deletes the game's texture cache (about 660 files) and restarts the app.\n\n"
@@ -1282,7 +1351,8 @@ public class LauncherController
                 }
                 FlushCloudThenRestart();
             },
-            onCancelled: null
+            onCancelled: null,
+            okLabel: Loc.Tr("삭제", "OK")
         );
     }
 
@@ -1292,40 +1362,50 @@ public class LauncherController
         {
             var path = DebugLogger.GetCurrentFilePath() ?? DebugLogger.GetLogsDirPath();
             _view.ShowConfirmation(
-                $"Debug logging is ON.\n\nCurrent log file:\n{path}\n\nTurn off?",
+                Loc.Tr(
+                    $"디버그 로그가 켜져 있습니다.\n\n현재 로그 파일:\n{path}\n\n끌까요?",
+                    $"Debug logging is ON.\n\nCurrent log file:\n{path}\n\nTurn off?"
+                ),
                 onConfirmed: () =>
                 {
                     DebugLogger.Disable();
                     UpdateDebugButtonLabel();
                     _view.AppendLog("Debug logging disabled.");
                 },
-                onCancelled: null
+                onCancelled: null,
+                okLabel: Loc.Tr("끄기", "OK")
             );
         }
         else
         {
             var dir = DebugLogger.GetLogsDirPath();
             _view.ShowConfirmation(
-                $"Turn debug logging on?\n\nLogs will be written under:\n{dir}\n\nFor full launch-to-gameplay logs, restart the app after enabling.",
+                Loc.Tr(
+                    $"디버그 로그를 켤까요?\n\n로그는 다음 폴더에 저장됩니다:\n{dir}\n\n실행부터 게임 플레이까지의 전체 로그가 필요하면 켠 뒤 앱을 재시작하세요.",
+                    $"Turn debug logging on?\n\nLogs will be written under:\n{dir}\n\nFor full launch-to-gameplay logs, restart the app after enabling."
+                ),
                 onConfirmed: () =>
                 {
                     var path = DebugLogger.Enable();
                     UpdateDebugButtonLabel();
                     _view.AppendLog($"Debug logging enabled → {path ?? "(failed to start)"}");
                 },
-                onCancelled: null
+                onCancelled: null,
+                okLabel: Loc.Tr("켜기", "OK")
             );
         }
     }
 
     private void UpdateDebugButtonLabel() =>
-        _view.DebugButton.Text = DebugLogger.IsEnabled() ? "Debug: ON" : "Debug: OFF";
+        _view.DebugButton.Text = DebugLogger.IsEnabled()
+            ? Loc.Tr("디버그: 켜짐", "Debug: ON")
+            : Loc.Tr("디버그: 꺼짐", "Debug: OFF");
 
     // Issue #36 Part A: one-shot manual backup. Confirm → background snapshot
     // of the whole save tree via LocalBackupService.BackupNow() → result modal.
     private void OnLocalBackupPressed()
     {
-        // Backups live under external storage (StS2LauncherMM/Saves). Without
+        // Backups live under external storage (StS2LauncherRedux/Saves). Without
         // the permission there's nowhere to write — request it and bail so the
         // user can grant and retry, rather than firing a guaranteed failure.
         // (BackupNow also re-checks and returns NeedsPermission, but pre-checking
@@ -1334,7 +1414,7 @@ public class LauncherController
         {
             AppPaths.RequestStoragePermission();
             _view.ShowConfirmation(
-                Loc.Tr("백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again."),
+                Loc.Tr("백업하려면 저장소 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again."),
                 onConfirmed: null,
                 okLabel: Loc.Tr("확인", "OK"),
                 cancelLabel: Loc.Tr("닫기", "Close")
@@ -1343,8 +1423,9 @@ public class LauncherController
         }
 
         ShowConfirmation(
-            Loc.Tr("현재 세이브 데이터를 로컬에 백업할까요?", "Back up your current save data to this device?"),
-            () =>
+            Loc.Tr("현재 세이브를 이 기기에 백업할까요?", "Back up your current save data to this device?"),
+            okLabel: Loc.Tr("백업", "OK"),
+            onConfirmed: () =>
             {
                 if (_cloudOpInProgress)
                     return;
@@ -1372,7 +1453,7 @@ public class LauncherController
                                 AppPaths.RequestStoragePermission();
                                 _view.AppendLog("Local backup needs storage permission.");
                                 _view.ShowConfirmation(
-                                    Loc.Tr("백업하려면 저장공간 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again."),
+                                    Loc.Tr("백업하려면 저장소 접근 권한이 필요합니다.\n권한을 허용한 뒤 다시 시도하세요.", "Storage access is required to back up.\nGrant permission, then try again."),
                                     onConfirmed: null,
                                     okLabel: Loc.Tr("확인", "OK"),
                                     cancelLabel: Loc.Tr("닫기", "Close")
@@ -1435,8 +1516,12 @@ public class LauncherController
         if (BlockIfTokenExpired())
             return;
         ShowConfirmation(
-            "Push local saves to cloud?\nThis will overwrite your cloud saves.",
-            () =>
+            Loc.Tr(
+                "로컬 세이브를 클라우드에 올릴까요?\n클라우드의 세이브를 덮어씁니다.",
+                "Push local saves to cloud?\nThis will overwrite your cloud saves."
+            ),
+            okLabel: Loc.Tr("올리기", "OK"),
+            onConfirmed: () =>
             {
                 if (_cloudOpInProgress)
                     return;
@@ -1502,8 +1587,12 @@ public class LauncherController
         if (BlockIfTokenExpired())
             return;
         ShowConfirmation(
-            "Pull cloud saves to local?\nThis will overwrite your local saves.",
-            () =>
+            Loc.Tr(
+                "클라우드의 세이브를 이 기기로 받을까요?\n이 기기의 세이브를 덮어씁니다.",
+                "Pull cloud saves to local?\nThis will overwrite your local saves."
+            ),
+            okLabel: Loc.Tr("받기", "OK"),
+            onConfirmed: () =>
             {
                 if (_cloudOpInProgress)
                     return;
@@ -1560,10 +1649,16 @@ public class LauncherController
         );
     }
 
-    private void ShowConfirmation(string message, Action onConfirmed)
+    private void ShowConfirmation(string message, Action onConfirmed, string okLabel = null)
     {
-        _view.ShowConfirmation(message, onConfirmed);
+        _view.ShowConfirmation(message, onConfirmed, okLabel: okLabel);
     }
+
+    private string WelcomeText() =>
+        Loc.Tr(
+            $"{_model.AccountName}님, 환영합니다",
+            $"Welcome back, {_model.AccountName}"
+        );
 
     // issue #59 — boot-time choice for an expired saved token (fast path only,
     // so exactly once per app launch). Loc.Tr("다시 로그인", "Log in again") → login stage; "오프라인으로
@@ -1585,11 +1680,21 @@ public class LauncherController
             cancelLabel: Loc.Tr("오프라인으로 계속", "Continue offline")
         );
         dialog.Confirmed += () =>
-            ShowLoginStage(Loc.Tr("Steam 로그인이 만료되었습니다. 다시 로그인해 주세요.", "Your Steam login has expired. Please log in again."));
+            ShowLoginStage(
+                Loc.Tr(
+                    "Steam 로그인이 만료되었습니다. 다시 로그인해 주세요.",
+                    "Your Steam login has expired. Please log in again."
+                )
+            );
         dialog.Cancelled += () =>
         {
             PatchHelper.Log("[Issue59] Expired-token dialog: offline chosen");
-            _view.SetStatus(Loc.Tr("오프라인 모드 — 클라우드 동기화·창작마당은 재로그인 필요", "Offline mode: log in again to use cloud sync and Workshop"));
+            _view.SetStatus(
+                Loc.Tr(
+                    "오프라인 모드: 클라우드 동기화와 창작마당을 쓰려면 다시 로그인해야 합니다",
+                    "Offline mode: log in again to use cloud sync and Workshop"
+                )
+            );
             ShowLaunchStage(ResolveLaunchButtonText(), showCloudSync: true, showUpdate: true);
         };
         _view.RootControl.AddChild(dialog);
@@ -1607,7 +1712,7 @@ public class LauncherController
         _ = SimpleResultDialog.ShowAsync(
             _view.RootControl,
             false,
-            Loc.Tr("Steam 로그인이 만료되어 이 기능을 쓸 수 없습니다.\n앱을 재실행한 뒤 다시 로그인해 주세요.", "Your Steam login has expired, so this feature isn't available.\nRestart the app and log in again."),
+            Loc.Tr("Steam 로그인이 만료되어 이 기능을 사용할 수 없습니다.\n앱을 다시 실행해 로그인해 주세요.", "Your Steam login has expired, so this feature isn't available.\nRestart the app and log in again."),
             LauncherUI.ResolveScale(_view.RootControl)
         );
         return true;
@@ -1641,7 +1746,9 @@ public class LauncherController
     private void PromptUpdateRestart()
     {
         _view.Actions.HideAll();
-        _view.SetStatus(Loc.Tr("업데이트 적용을 위해 재시작합니다...", "Restarting to apply the update..."));
+        _view.SetStatus(
+            Loc.Tr("업데이트를 적용하려고 재시작하는 중...", "Restarting to apply the update...")
+        );
         try
         {
             var timer = _view.RootControl.GetTree().CreateTimer(2.0);
@@ -1694,6 +1801,6 @@ public class LauncherController
     {
         if (_model.NeedsRestartAfterBranchSwitch)
             return Loc.Tr("앱 재시작 필요", "App restart required");
-        return _model.InGameMode ? "PLAY" : "RESTART APP";
+        return _model.InGameMode ? Loc.Tr("게임 시작", "PLAY") : Loc.Tr("앱 재시작", "RESTART APP");
     }
 }

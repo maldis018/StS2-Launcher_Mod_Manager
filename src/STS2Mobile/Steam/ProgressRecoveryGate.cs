@@ -117,8 +117,8 @@ public static class ProgressRecoveryGate
         {
             var dialog = new StyledDialog(
                 Loc.Tr(
-                    "이번 세션은 세이브를 복구 모드로 열었습니다(게임 버전 차이). "
-                        + "로컬을 클라우드로 덮으시겠습니까?",
+                    "게임 버전이 달라 이번 세션은 세이브를 복구 모드로 열었습니다.\n"
+                        + "이 기기의 진행도를 클라우드 버전으로 덮어쓸까요?",
                     "This session opened your save in recovery mode because of a game version mismatch. "
                         + "Overwrite local progress with the cloud version?"
                 ),

@@ -223,18 +223,22 @@ public class SaveProgressSummary
             return "—";
         var hours = TotalPlaytimeSeconds / 3600;
         var minutes = (TotalPlaytimeSeconds % 3600) / 60;
-        return hours > 0 ? $"{hours}h {minutes}m" : $"{minutes}m";
+        return hours > 0
+            ? Loc.Tr($"{hours}시간 {minutes}분", $"{hours}h {minutes}m")
+            : Loc.Tr($"{minutes}분", $"{minutes}m");
     }
 
     public string FormatSize()
     {
+        // Korean attaches the unit to the number ("1.5MB").
+        var gap = Loc.IsKo ? "" : " ";
         if (RawSize == 0)
-            return "0 B";
+            return $"0{gap}B";
         if (RawSize < 1024)
-            return $"{RawSize} B";
+            return $"{RawSize}{gap}B";
         if (RawSize < 1024 * 1024)
-            return $"{RawSize / 1024.0:F1} KB";
-        return $"{RawSize / (1024.0 * 1024.0):F1} MB";
+            return $"{RawSize / 1024.0:F1}{gap}KB";
+        return $"{RawSize / (1024.0 * 1024.0):F1}{gap}MB";
     }
 
     // Local-time string, no seconds. Matches the granularity Steam Cloud

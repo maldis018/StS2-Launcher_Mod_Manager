@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="512" height="512">
+  <title>StS2 Launcher Redux icon</title>
+  <defs>
+    <!-- Vertical body colour: bright cyan near the top, deeper teal toward the base
+         (sampled from the reference: ~#58EEF4, #45D7E0, #3FC4CB, #40A6AA). -->
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4FE3EA"/>
+      <stop offset="0.38" stop-color="#5CF0F5"/>
+      <stop offset="0.62" stop-color="#40C6CE"/>
+      <stop offset="1" stop-color="#3A9DA2"/>
+    </linearGradient>
+    <!-- Horizontal bevel: light catches the left edge, the right edge falls into shade. -->
+    <linearGradient id="bevel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="0.3" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0B3B40" stop-opacity="0.45"/>
+    </linearGradient>
+    <!-- One serif capital I, centred on x=0: flared slab serifs with curved brackets. -->
+    <path id="glyph" d="M -60 48 H 60 V 70 Q 37 74 34 98 V 414 Q 37 438 60 442 V 464 H -60 V 442 Q -37 438 -34 414 V 98 Q -37 74 -60 70 Z"/>
+    <g id="pillar">
+      <use xlink:href="#glyph" href="#glyph" fill="none" stroke="#2B1418" stroke-width="14" stroke-linejoin="round"/>
+      <use xlink:href="#glyph" href="#glyph" fill="url(#body)"/>
+      <use xlink:href="#glyph" href="#glyph" fill="url(#bevel)"/>
+      <!-- Thin inner highlight line down the lit side of the stem. -->
+      <path d="M -22 104 V 408" stroke="#E8FFFF" stroke-opacity="0.55" stroke-width="5" stroke-linecap="round"/>
+    </g>
+  </defs>
+  <use xlink:href="#pillar" href="#pillar" transform="translate(188 0)"/>
+  <use xlink:href="#pillar" href="#pillar" transform="translate(324 0)"/>
+</svg>

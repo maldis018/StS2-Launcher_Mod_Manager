@@ -50,7 +50,7 @@ public class LocalOnlyMenuDialog : ColorRect
         vbox.AddThemeConstantOverride("separation", (int)(14 * scale));
         dialogBox.AddChild(vbox);
 
-        var title = new StyledLabel("Save Manager", scale, fontSize: titleFs);
+        var title = new StyledLabel(Loc.Tr("세이브 관리", "Save Manager"), scale, fontSize: titleFs);
         vbox.AddChild(title);
 
         var hint = new StyledLabel(

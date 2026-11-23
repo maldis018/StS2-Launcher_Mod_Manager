@@ -10,7 +10,9 @@ namespace STS2Mobile.Steam;
 public static class AppUpdateChecker
 {
     private const string ReleasesUrl =
-        "https://api.github.com/repos/iunius612/StS2-Launcher_Mod_Manager/releases/latest";
+        "https://api.github.com/repos/maldis018/sts2-launcher-redux/releases/latest";
+
+    private const string ApkAssetPrefix = "StS2LauncherRedux-";
 
     public static async Task<AppUpdateResult> CheckAsync()
     {
@@ -19,7 +21,7 @@ public static class AppUpdateChecker
             return AppUpdateResult.None;
 
         using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        http.DefaultRequestHeaders.Add("User-Agent", "StS2-Launcher");
+        http.DefaultRequestHeaders.Add("User-Agent", "StS2-Launcher-Redux");
 
         var response = await http.GetStringAsync(ReleasesUrl).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(response);
@@ -59,21 +61,29 @@ public static class AppUpdateChecker
             : null;
         var releaseNotes = ReleaseNotes.ExtractDialogBody(releaseBody);
 
+        // CI (.github/workflows/release.yml) publishes StS2LauncherRedux-v<ver>.apk.
+        // Prefer that name; fall back to the first .apk for hand-made releases.
         string downloadUrl = null;
+        string fallbackUrl = null;
         if (root.TryGetProperty("assets", out var assets))
         {
             foreach (var asset in assets.EnumerateArray())
             {
                 var name = asset.TryGetProperty("name", out var n) ? n.GetString() : null;
-                if (name != null && name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                if (name == null || !name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var url = asset.TryGetProperty("browser_download_url", out var u)
+                    ? u.GetString()
+                    : null;
+                if (name.StartsWith(ApkAssetPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    downloadUrl = asset.TryGetProperty("browser_download_url", out var url)
-                        ? url.GetString()
-                        : null;
+                    downloadUrl = url;
                     break;
                 }
+                fallbackUrl ??= url;
             }
         }
+        downloadUrl ??= fallbackUrl;
 
         return new AppUpdateResult(latestVersion, downloadUrl, releaseNotes);
     }

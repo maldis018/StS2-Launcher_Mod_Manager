@@ -19,7 +19,7 @@ namespace STS2Mobile.Patches;
 // and go log-only in that case.
 //
 // Test trigger (QA only, no UI surface): drop a file at
-//   /storage/emulated/0/StS2LauncherMM/.modguard_test_alert
+//   /storage/emulated/0/StS2LauncherRedux/.modguard_test_alert
 // with content "ModName|ExceptionType" (both optional). A 2s watcher shows the
 // exact production dialog and deletes the file, so repeated triggers work.
 public static class ModGuardAlert
@@ -195,9 +195,9 @@ public static class ModGuardAlert
                         $"'{modName}' 모드에서 오류가 발생했습니다.\n"
                             + $"({exceptionType})\n\n"
                             + "게임은 계속 진행할 수 있지만, 문제가 반복되면\n"
-                            + "Mod Hub에서 해당 모드를 비활성화하세요.\n\n"
+                            + "모드 허브에서 해당 모드를 비활성화하세요.\n\n"
                             + "이 알림을 보고 싶지 않으면\n"
-                            + "런처 화면 우측 상단의 Debug 토글을 OFF 하세요.",
+                            + "런처 화면 오른쪽 위의 디버그 토글을 끄세요.",
                         $"The mod '{modName}' hit an error.\n"
                             + $"({exceptionType})\n\n"
                             + "The game can keep running, but if this keeps happening,\n"

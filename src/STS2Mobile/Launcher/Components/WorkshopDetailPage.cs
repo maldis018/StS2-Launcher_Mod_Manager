@@ -13,7 +13,7 @@ namespace STS2Mobile.Launcher.Components;
 // ModDetailDialog modal, this is a real page with four tabs like the Steam
 // Community item page:
 //   설명   (Description)   — native: full description, thumbnail, stats, tags.
-//   업데이트 노트 (Change Notes) — native: PublishedFile.GetChangeHistory, lazy-loaded.
+//   변경 사항 (Change Notes): native: PublishedFile.GetChangeHistory, lazy-loaded.
 //   토론   (Discussions)   — Steam Community web feature; SteamKit2 has no RPC for
 //                            it, so this tab explains that and opens the browser.
 //   댓글   (Comments)      — shows the public comment count (the one datum the API
@@ -168,7 +168,7 @@ public class WorkshopDetailPage : ColorRect
         string[] labels =
         {
             Loc.Tr("설명", "DESCRIPTION"),
-            Loc.Tr("업데이트 노트", "CHANGE NOTES"),
+            Loc.Tr("변경 사항", "CHANGE NOTES"),
             Loc.Tr("토론", "DISCUSSIONS"),
             Loc.Tr("댓글", "COMMENTS"),
         };
@@ -289,7 +289,7 @@ public class WorkshopDetailPage : ColorRect
         scroll.AddChild(_notesList);
 
         _notesList.AddChild(
-            MakeInfoLabel(Loc.Tr("업데이트 노트를 불러오는 중…", "Loading change notes…"))
+            MakeInfoLabel(Loc.Tr("변경 사항을 불러오는 중...", "Loading change notes…"))
         );
         return scroll;
     }
@@ -298,7 +298,7 @@ public class WorkshopDetailPage : ColorRect
         BuildWebFeatureBody(
             Loc.Tr("토론", "Discussions"),
             Loc.Tr(
-                "이 모드의 토론은 Steam 커뮤니티에서 볼 수 있습니다. 아래 버튼으로 브라우저에서 여세요.",
+                "이 모드의 토론은 Steam 커뮤니티에서 볼 수 있습니다. 아래 버튼을 눌러 브라우저에서 여세요.",
                 "Discussions for this mod live on the Steam Community. Open them in your browser below."
             ),
             $"https://steamcommunity.com/sharedfiles/filedetails/?id={_pfid}"
@@ -318,7 +318,7 @@ public class WorkshopDetailPage : ColorRect
             countLine
                 + "\n\n"
                 + Loc.Tr(
-                    "댓글은 Steam 커뮤니티에서 읽고 작성할 수 있습니다. 아래 버튼으로 브라우저에서 여세요.",
+                    "댓글은 Steam 커뮤니티에서 읽고 작성할 수 있습니다. 아래 버튼을 눌러 브라우저에서 여세요.",
                     "Comments can be read and posted on the Steam Community. Open them in your browser below."
                 ),
             $"https://steamcommunity.com/sharedfiles/filedetails/?id={_pfid}#comments"
@@ -386,7 +386,7 @@ public class WorkshopDetailPage : ColorRect
 
         int btnHeight = _compact ? 44 : 48;
         _actionButton = new StyledButton(
-            "SUBSCRIBE",
+            Loc.Tr("구독", "SUBSCRIBE"),
             _scale,
             fontSize: _compact ? Ui.FontCaption : Ui.FontBody,
             height: btnHeight,
@@ -429,7 +429,9 @@ public class WorkshopDetailPage : ColorRect
     {
         // SUBSCRIBE is constructive (accent); UNSUBSCRIBE deletes local files, so it
         // reads as Danger everywhere — same rule as the cards.
-        _actionButton.Text = _subscribed ? "UNSUBSCRIBE" : "SUBSCRIBE";
+        _actionButton.Text = _subscribed
+            ? Loc.Tr("구독 취소", "UNSUBSCRIBE")
+            : Loc.Tr("구독", "SUBSCRIBE");
         _actionButton.ApplyVariant(
             _scale,
             _subscribed ? ButtonVariant.Danger : ButtonVariant.Primary
@@ -484,11 +486,11 @@ public class WorkshopDetailPage : ColorRect
         foreach (var c in _statsFlow.GetChildren())
             c.QueueFree();
         AddStat(
-            Loc.Tr($"구독 {_item.Subscriptions:N0}", $"{_item.Subscriptions:N0} subscribers"),
+            Loc.Tr($"구독자 {_item.Subscriptions:N0}명", $"{_item.Subscriptions:N0} subscribers"),
             Ui.TextSecondary
         );
         AddStat(
-            STS2Mobile.Launcher.LauncherModel.FormatSize((long)_item.FileSize),
+            Loc.Size((long)_item.FileSize),
             Ui.TextSecondary
         );
         AddStat($"{_item.VoteScore * 100f:F0}%", Ui.Success);
@@ -644,7 +646,7 @@ public class WorkshopDetailPage : ColorRect
         if (changes == null || changes.Count == 0)
         {
             _notesList.AddChild(
-                MakeInfoLabel(Loc.Tr("업데이트 노트가 없습니다.", "No change notes."))
+                MakeInfoLabel(Loc.Tr("변경 사항이 없습니다.", "No change notes."))
             );
             return;
         }
@@ -689,7 +691,7 @@ public class WorkshopDetailPage : ColorRect
             c.QueueFree();
         _notesList.AddChild(
             MakeInfoLabel(
-                Loc.Tr("업데이트 노트를 불러오지 못했습니다.", "Couldn't load change notes.")
+                Loc.Tr("변경 사항을 불러오지 못했습니다.", "Couldn't load change notes.")
             )
         );
     }

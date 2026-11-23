@@ -52,7 +52,7 @@ public class BackupResultDialog : ColorRect
         {
             AddRow(vbox, Loc.Tr("백업된 파일", "Files backed up"), Loc.Tr($"{fileCount}개", Loc.Files(fileCount)), scale);
             if (totalBytes > 0)
-                AddRow(vbox, Loc.Tr("총 크기", "Total size"), LauncherModel.FormatSize(totalBytes), scale);
+                AddRow(vbox, Loc.Tr("총 크기", "Total size"), Loc.Size(totalBytes), scale);
             if (!string.IsNullOrEmpty(backupPath))
             {
                 // Full path is long; show it on its own wrapped line so the

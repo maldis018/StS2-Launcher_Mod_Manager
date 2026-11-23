@@ -6,7 +6,7 @@ using MegaCrit.Sts2.Core.Modding;
 namespace STS2Mobile.Patches;
 
 // Redirects the game's built-in mod loader to scan AppPaths.ExternalModsDir
-// (/storage/emulated/0/StS2LauncherMM/Mods) instead of the "mods" folder next
+// (/storage/emulated/0/StS2LauncherRedux/Mods) instead of the "mods" folder next
 // to the game executable. As of sts2 v0.107.0 ModManager.Initialize is async
 // (Task), so the compiler hoists the body — including Path.Combine(..., "mods")
 // — into a generated MoveNext state machine and the old ldstr "mods"

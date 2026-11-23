@@ -14,7 +14,7 @@ namespace STS2Mobile.Patches;
 public static class SaveDiagnosticPatches
 {
     // Issue #36 Part B repro hook (4b). When the external-storage marker file
-    // /storage/emulated/0/StS2LauncherMM/.repro_issue36_emptywrite exists, the
+    // /storage/emulated/0/StS2LauncherRedux/.repro_issue36_emptywrite exists, the
     // FIRST game save through CloudSaveStore.WriteFile fires ONE empty write down
     // the game's real cloud path (CloudStore.WriteFile, = our SteamKit2 store
     // funnel) so device-test-qa can deterministically confirm the Part B guard

@@ -81,7 +81,7 @@ public class GodotApp extends GodotActivity {
 	private Thread logcatThread;
 	private File logcatFile;
 	private static final String DEBUG_LOGCAT_PREF = "debug_logcat_enabled";
-	private static final String EXTERNAL_LOGS_SUBDIR = "StS2LauncherMM/Logs";
+	private static final String EXTERNAL_LOGS_SUBDIR = "StS2LauncherRedux/Logs";
 	// Default ON so users hitting boot crashes still produce a log; toggle off
 	// in-app to opt out. See LauncherController.OnDebugTogglePressed.
 	private static final boolean DEBUG_LOGCAT_DEFAULT = true;
@@ -345,7 +345,7 @@ public class GodotApp extends GodotActivity {
 		TextView title = new TextView(this);
 		boolean isKo = Locale.getDefault().getLanguage().startsWith("ko");
 		title.setText(isKo
-				? "이미지 인덱스 캐시를 다시 만드는 중입니다"
+				? "이미지 캐시를 다시 만드는 중입니다"
 				: "Rebuilding the image index cache");
 		title.setTextColor(0xFFFFFFFF);
 		title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
@@ -359,9 +359,9 @@ public class GodotApp extends GodotActivity {
 		TextView desc = new TextView(this);
 		desc.setText(isKo
 				? "게임 업데이트가 감지되어 모바일용 텍스처 캐시를\n"
-				+ "새 빌드 기준으로 재생성합니다.\n"
-				+ "첫 실행은 30~60초 소요되며 다음부터는 정상 속도입니다.\n\n"
-				+ "세이브 / 진행도 / 로그인 정보는 보존됩니다."
+				+ "새 빌드 기준으로 다시 만듭니다.\n"
+				+ "처음 실행은 30~60초 걸리며, 다음부터는 평소 속도로 시작합니다.\n\n"
+				+ "세이브, 진행도, 로그인 정보는 유지됩니다."
 				: "A game update was detected, so the mobile texture cache\n"
 				+ "is being rebuilt for the new version.\n"
 				+ "The first launch takes 30 to 60 seconds; after that, startup is back to normal.\n\n"
@@ -437,7 +437,7 @@ public class GodotApp extends GodotActivity {
 		}
 		try {
 			File savesDir = new File(Environment.getExternalStorageDirectory(),
-					"StS2LauncherMM/Saves");
+					"StS2LauncherRedux/Saves");
 			savesDir.mkdirs();
 			String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
 			File zipFile = new File(savesDir, "diag-userdata-backup-" + ts + ".zip");
@@ -455,7 +455,7 @@ public class GodotApp extends GodotActivity {
 	private void runDiagnosticDump() {
 		try {
 			File dumpDir = new File(Environment.getExternalStorageDirectory(),
-					"StS2LauncherMM/Diagnostics");
+					"StS2LauncherRedux/Diagnostics");
 			dumpDir.mkdirs();
 			String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
 			File dumpFile = new File(dumpDir, "diag-" + ts + ".txt");
@@ -783,7 +783,9 @@ public class GodotApp extends GodotActivity {
 			}
 			lastBackPressToast = Toast.makeText(
 				this,
-				"Press back again to exit",
+				Locale.getDefault().getLanguage().startsWith("ko")
+					? "한 번 더 누르면 종료됩니다"
+					: "Press back again to exit",
 				Toast.LENGTH_SHORT
 			);
 			lastBackPressToast.show();
@@ -1130,7 +1132,7 @@ public class GodotApp extends GodotActivity {
 	//
 	// When enabled, spawn a logcat process scoped to our own PID (--pid) so no
 	// READ_LOGS permission is needed, and stream every line to a timestamped
-	// file under /storage/emulated/0/StS2LauncherMM/Logs/. The toggle persists
+	// file under /storage/emulated/0/StS2LauncherRedux/Logs/. The toggle persists
 	// in SharedPreferences so the next launch can re-attach the capture from
 	// onCreate, before any of our patches or the .NET runtime even boot — that
 	// way the user can collect a complete launch-to-gameplay log just by

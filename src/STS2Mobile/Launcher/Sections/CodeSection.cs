@@ -16,15 +16,19 @@ public class CodeSection : VBoxContainer
         AddThemeConstantOverride("separation", (int)(6 * scale));
         Visible = false;
 
-        _codeLabel = new StyledLabel("Enter Steam Guard code", scale, fontSize: 14);
+        _codeLabel = new StyledLabel(
+            Loc.Tr("Steam Guard 코드를 입력하세요", "Enter Steam Guard code"),
+            scale,
+            fontSize: 14
+        );
         AddChild(_codeLabel);
 
-        _codeField = new StyledLineEdit("Code", scale);
+        _codeField = new StyledLineEdit(Loc.Tr("코드", "Code"), scale);
         _codeField.MaxLength = 10;
         _codeField.TextSubmitted += _ => OnSubmit();
         AddChild(_codeField);
 
-        var submitButton = new StyledButton("SUBMIT", scale);
+        var submitButton = new StyledButton(Loc.Tr("확인", "SUBMIT"), scale);
         submitButton.Pressed += OnSubmit;
         AddChild(submitButton);
     }
@@ -34,8 +38,8 @@ public class CodeSection : VBoxContainer
         Visible = true;
         _codeField.Text = "";
         _codeLabel.Text = wasIncorrect
-            ? "Code was incorrect. Enter new code:"
-            : "Enter Steam Guard code";
+            ? Loc.Tr("코드가 올바르지 않습니다. 새 코드를 입력하세요:", "Code was incorrect. Enter new code:")
+            : Loc.Tr("Steam Guard 코드를 입력하세요", "Enter Steam Guard code");
         _codeField.GrabFocus();
     }
 

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using STS2Mobile.Steam;
+using STS2Mobile.Launcher.Components;
 
 namespace STS2Mobile.Modding;
 
@@ -139,7 +140,10 @@ public static class WorkshopInstaller
                 {
                     Success = false,
                     NoManifest = true,
-                    Error = "Downloaded Workshop item has no manifest .json with an 'id'.",
+                    Error = Loc.Tr(
+                        "다운로드한 창작마당 아이템에 'id'가 있는 매니페스트 .json이 없습니다.",
+                        "Downloaded Workshop item has no manifest .json with an 'id'."
+                    ),
                 };
             }
 
@@ -149,7 +153,10 @@ public static class WorkshopInstaller
                 return new WorkshopInstallResult
                 {
                     Success = false,
-                    Error = $"Invalid mod id: '{manifest.Id}'",
+                    Error = Loc.Tr(
+                        $"잘못된 모드 ID: '{manifest.Id}'",
+                        $"Invalid mod id: '{manifest.Id}'"
+                    ),
                 };
 
             var cfg = ModConfig.Load();
@@ -189,7 +196,10 @@ public static class WorkshopInstaller
                 {
                     Success = false,
                     ModId = manifest.Id,
-                    Error = "Mod is disabled (stashed). Enable it first, then update.",
+                    Error = Loc.Tr(
+                        "모드가 비활성화(보관)되어 있습니다. 먼저 활성화한 뒤 업데이트하세요.",
+                        "Mod is disabled (stashed). Enable it first, then update."
+                    ),
                 };
             }
 

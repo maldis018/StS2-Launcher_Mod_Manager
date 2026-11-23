@@ -25,7 +25,7 @@ namespace STS2Mobile.Launcher.Sections;
 public class ModManagerSection : VBoxContainer
 {
     public event Action BackPressed;
-    public event Action<string, Action, Action> ConfirmationRequested;
+    public event ConfirmHandler ConfirmationRequested;
 
     // Raised with true=portrait / false=landscape; the controller applies it to
     // the launcher window and restores landscape when the hub closes.
@@ -53,6 +53,7 @@ public class ModManagerSection : VBoxContainer
     private readonly StyledButton _importButton;
     private readonly StyledButton _refreshButton;
     private readonly StyledButton _permissionButton;
+    private readonly StyledButton _legacyImportButton;
 
     private readonly StyledButton _backButton;
     private readonly StyledButton _orientButton;
@@ -84,7 +85,7 @@ public class ModManagerSection : VBoxContainer
         AddChild(header);
 
         _backButton = new StyledButton(
-            "‹  BACK",
+            Loc.Tr("‹  뒤로", "‹  BACK"),
             scale,
             fontSize: Ui.FontBody,
             height: Ui.TouchHeight,
@@ -98,7 +99,7 @@ public class ModManagerSection : VBoxContainer
         header.AddChild(_backButton);
 
         var title = new StyledLabel(
-            "Mod Hub",
+            Loc.Tr("모드 허브", "Mod Hub"),
             scale,
             fontSize: Ui.FontTitle,
             align: HorizontalAlignment.Left
@@ -130,7 +131,13 @@ public class ModManagerSection : VBoxContainer
         tabRow.AddThemeConstantOverride("separation", (int)(Ui.GapS * scale));
         AddChild(tabRow);
 
-        var tabNames = new[] { "WORKSHOP", "SUBSCRIBED", "LOCAL", "DOWNLOADS" };
+        var tabNames = new[]
+        {
+            Loc.Tr("창작마당", "WORKSHOP"),
+            Loc.Tr("구독 중", "SUBSCRIBED"),
+            Loc.Tr("로컬", "LOCAL"),
+            Loc.Tr("다운로드", "DOWNLOADS"),
+        };
         _tabButtons = new StyledButton[tabNames.Length];
         for (int i = 0; i < tabNames.Length; i++)
         {
@@ -150,13 +157,13 @@ public class ModManagerSection : VBoxContainer
         }
 
         _workshopPane = new WorkshopBrowserPane(scale);
-        _workshopPane.ConfirmationRequested += (msg, ok, cancel) =>
-            ConfirmationRequested?.Invoke(msg, ok, cancel);
+        _workshopPane.ConfirmationRequested += (msg, ok, cancel, okLabel, cancelLabel) =>
+            ConfirmationRequested?.Invoke(msg, ok, cancel, okLabel, cancelLabel);
         AddChild(_workshopPane);
 
         _subscribedPane = new WorkshopSubscribedPane(scale);
-        _subscribedPane.ConfirmationRequested += (msg, ok, cancel) =>
-            ConfirmationRequested?.Invoke(msg, ok, cancel);
+        _subscribedPane.ConfirmationRequested += (msg, ok, cancel, okLabel, cancelLabel) =>
+            ConfirmationRequested?.Invoke(msg, ok, cancel, okLabel, cancelLabel);
         AddChild(_subscribedPane);
 
         // --- LOCAL pane ----------------------------------------------------
@@ -169,7 +176,11 @@ public class ModManagerSection : VBoxContainer
         _statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _localPane.AddChild(_statusLabel);
 
-        _permissionButton = new StyledButton("Grant Storage Permission", scale, fontSize: 14);
+        _permissionButton = new StyledButton(
+            Loc.Tr("저장소 권한 허용", "Grant Storage Permission"),
+            scale,
+            fontSize: 14
+        );
         _permissionButton.Visible = false;
         _permissionButton.Pressed += OnGrantPermissionPressed;
         _localPane.AddChild(_permissionButton);
@@ -178,15 +189,30 @@ public class ModManagerSection : VBoxContainer
         actionRow.AddThemeConstantOverride("separation", (int)(6 * scale));
         _localPane.AddChild(actionRow);
 
-        _importButton = new StyledButton("Import Mod (.zip)...", scale, fontSize: 14);
+        _importButton = new StyledButton(
+            Loc.Tr("모드 가져오기 (.zip)", "Import Mod (.zip)..."),
+            scale,
+            fontSize: 14
+        );
         _importButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         _importButton.Pressed += OnImportPressed;
         actionRow.AddChild(_importButton);
 
-        _refreshButton = new StyledButton("Refresh", scale, fontSize: 14);
+        _refreshButton = new StyledButton(Loc.Tr("새로고침", "Refresh"), scale, fontSize: 14);
         _refreshButton.CustomMinimumSize = new Vector2((int)(100 * scale), 0);
         _refreshButton.Pressed += RefreshLocal;
         actionRow.AddChild(_refreshButton);
+
+        // Copies mods/backups/config from the old StS2LauncherMM folder. Only
+        // shown when that folder exists (see RefreshLocal).
+        _legacyImportButton = new StyledButton(
+            Loc.Tr("StS2LauncherMM에서 가져오기", "Import from StS2LauncherMM..."),
+            scale,
+            fontSize: 14
+        );
+        _legacyImportButton.Visible = false;
+        _legacyImportButton.Pressed += OnLegacyImportPressed;
+        _localPane.AddChild(_legacyImportButton);
 
         var localScroll = new ScrollContainer();
         localScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -529,11 +555,13 @@ public class ModManagerSection : VBoxContainer
             );
             _permissionButton.Visible = true;
             _importButton.Disabled = true;
+            _legacyImportButton.Visible = false;
             return;
         }
 
         _permissionButton.Visible = false;
         _importButton.Disabled = _importInFlight;
+        _legacyImportButton.Visible = LegacyImportService.LegacyFolderExists();
         AppPaths.EnsureExternalDirectories();
 
         var scanned = ModScanner.Scan();
@@ -562,7 +590,7 @@ public class ModManagerSection : VBoxContainer
                     null,
                     Loc.Tr("설치된 로컬 모드가 없습니다.", "No local mods installed."),
                     Loc.Tr(
-                        "\"Import Mod (.zip)\"를 누르거나 WORKSHOP 탭에서 구독하세요.",
+                        "'모드 가져오기 (.zip)' 버튼을 누르거나 창작마당 탭에서 구독하세요.",
                         "Tap \"Import Mod (.zip)\", or subscribe on the WORKSHOP tab."
                     ),
                     _scale
@@ -588,12 +616,15 @@ public class ModManagerSection : VBoxContainer
                 && gameVersion != null
                 && CompareVersions(info.Manifest.MinGameVersion, gameVersion) > 0
             )
-                warning = $"Requires game {info.Manifest.MinGameVersion}+";
+                warning = Loc.Tr(
+                    $"게임 {info.Manifest.MinGameVersion} 이상 필요",
+                    $"Requires game {info.Manifest.MinGameVersion}+"
+                );
 
             var row = new ModListRow(
                 info,
                 _scale,
-                badge: info.Disabled ? "Disabled" : null,
+                badge: info.Disabled ? Loc.Tr("비활성", "Disabled") : null,
                 compact: Ui.IsPortrait(this)
             );
             var capturedInfo = info;
@@ -615,7 +646,7 @@ public class ModManagerSection : VBoxContainer
             var row = new ModListRow(
                 info,
                 _scale,
-                badge: "Unmanaged — root files",
+                badge: Loc.Tr("관리 안 됨 · 루트 파일", "Unmanaged — root files"),
                 compact: Ui.IsPortrait(this)
             );
             var capturedInfo = info;
@@ -635,7 +666,9 @@ public class ModManagerSection : VBoxContainer
             " · ",
             new[]
             {
-                string.IsNullOrWhiteSpace(m.Author) ? null : "by " + m.Author,
+                string.IsNullOrWhiteSpace(m.Author)
+                    ? null
+                    : Loc.Tr("제작자: ", "by ") + m.Author,
                 string.IsNullOrWhiteSpace(m.Version) ? null : LauncherModel.VersionLabel(m.Version),
             }.Where(s => s != null)
         );
@@ -646,8 +679,8 @@ public class ModManagerSection : VBoxContainer
 
         var facts = new List<(string, string)>
         {
-            ("Min game version", m.MinGameVersion),
-            ("Path", info.Path),
+            (Loc.Tr("최소 게임 버전", "Min game version"), m.MinGameVersion),
+            (Loc.Tr("경로", "Path"), info.Path),
         };
 
         var dialog = new ModDetailDialog(
@@ -657,10 +690,16 @@ public class ModManagerSection : VBoxContainer
             body,
             facts,
             _scale,
-            actionLabel: removable ? "Remove Mod" : null,
+            actionLabel: removable ? Loc.Tr("모드 삭제", "Remove Mod") : null,
             actionCallback: removable ? () => OnRowRemovePressed(info) : null,
             actionDanger: true,
-            action2Label: removable ? (info.Disabled ? "Enable" : "Disable") : null,
+            action2Label: removable
+                ? (
+                    info.Disabled
+                        ? Loc.Tr("활성화", "Enable")
+                        : Loc.Tr("비활성화", "Disable")
+                )
+                : null,
             action2Callback: removable ? () => OnLocalStashTogglePressed(info) : null,
             // Same semantic color as the SUBSCRIBED rows: Enable=Accent,
             // Disable=Secondary (was hardcoded Accent → 색이 화면마다 달랐음).
@@ -675,8 +714,8 @@ public class ModManagerSection : VBoxContainer
         bool wasDisabled = info.Disabled;
         BeginBusy(
             wasDisabled
-                ? Loc.Tr($"'{info.Id}' 활성화 중…", $"Enabling '{info.Id}'…")
-                : Loc.Tr($"'{info.Id}' 비활성화 중…", $"Disabling '{info.Id}'…")
+                ? Loc.Tr($"'{info.Id}' 활성화하는 중...", $"Enabling '{info.Id}'…")
+                : Loc.Tr($"'{info.Id}' 비활성화하는 중...", $"Disabling '{info.Id}'…")
         );
         var (ok, error) = wasDisabled ? ModStasher.Enable(info) : ModStasher.Disable(info);
         EndBusy();
@@ -686,7 +725,7 @@ public class ModManagerSection : VBoxContainer
                     wasDisabled
                         ? Loc.Tr($"'{info.Id}' 활성화됨.", $"'{info.Id}' enabled.")
                         : Loc.Tr(
-                            $"'{info.Id}' 비활성화됨(보관).",
+                            $"'{info.Id}' 비활성화됨 (보관).",
                             $"'{info.Id}' disabled (stashed)."
                         )
                 )
@@ -783,12 +822,12 @@ public class ModManagerSection : VBoxContainer
         var topLevelDir = info.TopLevelDir;
         ConfirmationRequested?.Invoke(
             Loc.Tr(
-                $"'{info.Manifest.DisplayName}'을(를) 삭제할까요?\n저장소에서 모드 폴더가 삭제됩니다.",
+                $"'{info.Manifest.DisplayName}' 모드를 삭제할까요?\n저장소에서 모드 폴더가 삭제됩니다.",
                 $"Remove '{info.Manifest.DisplayName}'?\nThis deletes the mod folder from storage."
             ),
             () =>
             {
-                BeginBusy(Loc.Tr($"'{id}' 삭제 중…", $"Removing '{id}'…"));
+                BeginBusy(Loc.Tr($"'{id}' 삭제하는 중...", $"Removing '{id}'…"));
                 bool ok = ModImporter.DeleteMod(topLevelDir, id);
                 EndBusy();
                 SetStatus(
@@ -799,7 +838,8 @@ public class ModManagerSection : VBoxContainer
                 );
                 RefreshLocal();
             },
-            null
+            null,
+            okLabel: Loc.Tr("삭제", "OK")
         );
     }
 
@@ -808,11 +848,25 @@ public class ModManagerSection : VBoxContainer
         AppPaths.RequestStoragePermission();
         SetStatus(
             Loc.Tr(
-                "권한을 허용한 뒤 여기로 돌아와 Refresh 를 누르세요.",
+                "권한을 허용한 뒤 여기로 돌아와 새로고침을 누르세요.",
                 "After granting permission, return here and tap Refresh."
             ),
             WarnColor
         );
+    }
+
+    private async void OnLegacyImportPressed()
+    {
+        _legacyImportButton.Disabled = true;
+        try
+        {
+            await LegacyImportFlow.RunAsync(this, _scale, firstRun: false);
+        }
+        finally
+        {
+            _legacyImportButton.Disabled = false;
+            RefreshLocal();
+        }
     }
 
     private void OnImportPressed()
@@ -822,7 +876,7 @@ public class ModManagerSection : VBoxContainer
         PatchHelper.Log("[Mods] Import button tapped");
         _importInFlight = true;
         _importButton.Disabled = true;
-        SetStatus(Loc.Tr("파일 선택기 여는 중…", "Opening file picker…"), InfoColor);
+        SetStatus(Loc.Tr("파일 선택기를 여는 중...", "Opening file picker…"), InfoColor);
 
         // Run the whole import pipeline on the thread pool to avoid Godot's
         // SynchronizationContext being disrupted by the SAF picker's OnPause/OnResume.
@@ -846,7 +900,11 @@ public class ModManagerSection : VBoxContainer
             catch (Exception ex)
             {
                 PatchHelper.Log($"[Mods] SAF pick failed: {ex}");
-                FinishImport("Import failed: " + ex.Message, error: true, refresh: false);
+                FinishImport(
+                    Loc.Tr("가져오기 실패: ", "Import failed: ") + ex.Message,
+                    error: true,
+                    refresh: false
+                );
                 return;
             }
 
@@ -856,7 +914,11 @@ public class ModManagerSection : VBoxContainer
 
             if (zipPaths == null || zipPaths.Length == 0)
             {
-                FinishImport("Import cancelled.", error: false, refresh: false);
+                FinishImport(
+                    Loc.Tr("가져오기가 취소되었습니다.", "Import cancelled."),
+                    error: false,
+                    refresh: false
+                );
                 return;
             }
 
@@ -866,7 +928,11 @@ public class ModManagerSection : VBoxContainer
         catch (Exception ex)
         {
             PatchHelper.Log($"[Mods] RunImportPipelineAsync fatal: {ex}");
-            FinishImport("Import failed: " + ex.Message, error: true, refresh: false);
+            FinishImport(
+                Loc.Tr("가져오기 실패: ", "Import failed: ") + ex.Message,
+                error: true,
+                refresh: false
+            );
         }
     }
 
@@ -877,9 +943,17 @@ public class ModManagerSection : VBoxContainer
         {
             var msg =
                 zipPaths.Length == 1
-                    ? (imported == 1 ? $"Imported 1 mod." : "Import failed.")
-                    : $"Imported {imported} / {zipPaths.Length} mod(s)"
-                        + (failed > 0 ? $" ({failed} failed)." : ".");
+                    ? (
+                        imported == 1
+                            ? Loc.Tr("모드 1개를 가져왔습니다.", "Imported 1 mod.")
+                            : Loc.Tr("가져오기 실패.", "Import failed.")
+                    )
+                    : Loc.Tr(
+                        $"모드 {zipPaths.Length}개 중 {imported}개를 가져왔습니다"
+                            + (failed > 0 ? $" (실패 {failed}개)." : "."),
+                        $"Imported {imported} / {zipPaths.Length} mod(s)"
+                            + (failed > 0 ? $" ({failed} failed)." : ".")
+                    );
             FinishImport(msg, error: imported == 0, refresh: imported > 0);
             return;
         }
@@ -887,7 +961,7 @@ public class ModManagerSection : VBoxContainer
         var zipPath = zipPaths[index];
         SetStatus(
             Loc.Tr(
-                $"가져오는 중 {index + 1}/{zipPaths.Length}…",
+                $"가져오는 중 {index + 1}/{zipPaths.Length}...",
                 $"Importing {index + 1}/{zipPaths.Length}…"
             ),
             InfoColor
@@ -913,7 +987,7 @@ public class ModManagerSection : VBoxContainer
                     {
                         ConfirmationRequested?.Invoke(
                             Loc.Tr(
-                                $"'{result.ModId}'은(는) 이미 설치되어 있습니다. 덮어쓸까요?",
+                                $"'{result.ModId}' 모드가 이미 설치되어 있습니다. 덮어쓸까요?",
                                 $"'{result.ModId}' is already installed. Overwrite?"
                             ),
                             () =>
@@ -934,7 +1008,8 @@ public class ModManagerSection : VBoxContainer
                                 {
                                     ModImporter.CleanupImportZip(zipPath);
                                     await ImportSequentially(zipPaths, idx + 1, imp, fail + 1);
-                                })
+                                }),
+                            okLabel: Loc.Tr("덮어쓰기", "OK")
                         );
                     })
                     .CallDeferred();

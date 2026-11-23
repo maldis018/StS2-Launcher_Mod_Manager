@@ -187,7 +187,7 @@ public class ModDetailDialog : ColorRect
         }
 
         var closeButton = new StyledButton(
-            "CLOSE",
+            Loc.Tr("닫기", "CLOSE"),
             scale,
             fontSize: 13,
             height: 48,
