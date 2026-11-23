@@ -39,6 +39,15 @@ public class LauncherModel : IDisposable
     public volatile bool ConnectionResolved;
     public volatile bool AwaitingCode;
 
+    // True when the last Connect() failed with an exception (no network, DNS,
+    // timeout) rather than a definite answer such as "you don't own the game".
+    // Lets the controller keep PLAY for offline players only.
+    public volatile bool FailedOnConnection;
+
+    // True when the last download failure was not transient (it would fail
+    // again the same way), so a plain RESUME is no way out.
+    public volatile bool LastDownloadFailureFatal;
+
     // Issue #45: 브랜치 전환으로 PCK 가 in-process 갱신되면 dst dll 과 mismatch
     // — process restart 필요. LauncherUI 가 이걸 보고 Play→Restart 분기.
     internal volatile bool NeedsRestartAfterBranchSwitch;
@@ -174,6 +183,7 @@ public class LauncherModel : IDisposable
     // credentials but no ownership marker.
     public async void Connect()
     {
+        FailedOnConnection = false;
         SetState(SessionState.Connecting);
 
         try
@@ -192,6 +202,7 @@ public class LauncherModel : IDisposable
         catch (Exception ex)
         {
             PatchHelper.Log($"[Launcher] Connection failed: {ex.Message}");
+            FailedOnConnection = true;
             SetState(
                 SessionState.Failed,
                 "Could not connect to Steam. Check your internet connection."
@@ -467,6 +478,7 @@ public class LauncherModel : IDisposable
         _downloadCts = new CancellationTokenSource();
         var token = _downloadCts.Token;
         _pauseRequested = false;
+        LastDownloadFailureFatal = false;
         _downloadRunning = true;
 
         try
@@ -506,7 +518,11 @@ public class LauncherModel : IDisposable
             {
                 try
                 {
-                    await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, token));
+                    // ConfigureAwait(false): the rest of the download must not wait
+                    // for Godot's main loop, which Android stops while the app is
+                    // in the background (see DownloadBackgroundService).
+                    await Task.Run(() => _downloader.DownloadAsync(resolvedBranch, token))
+                        .ConfigureAwait(false);
                     break;
                 }
                 catch (Exception ex) when (DownloadResilience.IsTransient(ex, token))
@@ -529,7 +545,7 @@ public class LauncherModel : IDisposable
                         $"[Launcher] Download interrupted ({ex.Message}); auto-resume {round + 1}/{AutoResumeDelays.Length} in {delay.TotalSeconds:F0}s"
                     );
                     DownloadLogReceived?.Invoke($"Download interrupted: {ex.Message}");
-                    await WaitBeforeAutoResumeAsync(round + 1, delay, token);
+                    await WaitBeforeAutoResumeAsync(round + 1, delay, token).ConfigureAwait(false);
                     round++;
                 }
             }
@@ -551,6 +567,7 @@ public class LauncherModel : IDisposable
         }
         catch (Exception ex)
         {
+            LastDownloadFailureFatal = !DownloadResilience.IsTransient(ex, token);
             DownloadFailed?.Invoke(ex.Message);
             PatchHelper.Log($"[Launcher] Download error: {ex}");
         }

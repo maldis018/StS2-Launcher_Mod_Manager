@@ -8,27 +8,39 @@ namespace STS2Mobile.Launcher;
 // in the background. The download itself never depends on it. Every call is
 // best effort: off Android, or if the bridge fails, it logs and does nothing.
 //
-// Call from the Godot main thread only (JavaClassWrapper). The controller's
-// download event handlers already run there via _runOnMainThread.
+// Safe to call from any thread, and meant to be called straight from the
+// model's download threads, not through the main-thread queue: Android stops
+// Godot's main loop once the app is in the background, so a queued Update or
+// Stop would not run until the user returns, leaving a frozen notification
+// and a service and wake lock that outlive the download.
+//
+// JavaClassWrapper attaches the calling thread to the JVM itself (Godot's
+// get_jni_env), so worker threads are fine, but its wrap() class cache is
+// not locked, so every call here goes through one lock.
 internal static class DownloadBackgroundService
 {
-    private const ulong MinUpdateIntervalMs = 1000;
+    private const long MinUpdateIntervalMs = 1000;
+
+    private static readonly object Gate = new();
 
     private static bool _running;
     private static int _lastPercent = -2;
     private static string _lastText;
-    private static ulong _lastUpdateMs;
+    private static long _lastUpdateMs;
 
     public static void Start(string title, string text)
     {
-        if (_running)
-            return;
-        if (Call("startDownloadService", title ?? "", text ?? ""))
+        lock (Gate)
         {
-            _running = true;
-            _lastPercent = -2;
-            _lastText = text;
-            _lastUpdateMs = Time.GetTicksMsec();
+            if (_running)
+                return;
+            if (Call("startDownloadService", title ?? "", text ?? ""))
+            {
+                _running = true;
+                _lastPercent = -2;
+                _lastText = text;
+                _lastUpdateMs = System.Environment.TickCount64;
+            }
         }
     }
 
@@ -36,28 +48,33 @@ internal static class DownloadBackgroundService
     // skipped when nothing visible changed, since each call crosses JNI.
     public static void Update(double percent, string text)
     {
-        if (!_running)
-            return;
-
         int pct = percent < 0 ? -1 : (int)Math.Clamp(percent, 0, 100);
-        ulong now = Time.GetTicksMsec();
-        if (pct == _lastPercent && text == _lastText)
-            return;
-        if (now - _lastUpdateMs < MinUpdateIntervalMs)
-            return;
+        lock (Gate)
+        {
+            if (!_running)
+                return;
+            long now = System.Environment.TickCount64;
+            if (pct == _lastPercent && text == _lastText)
+                return;
+            if (now - _lastUpdateMs < MinUpdateIntervalMs)
+                return;
 
-        _lastPercent = pct;
-        _lastText = text;
-        _lastUpdateMs = now;
-        Call("updateDownloadService", pct.ToString(), text ?? "");
+            _lastPercent = pct;
+            _lastText = text;
+            _lastUpdateMs = now;
+            Call("updateDownloadService", pct.ToString(), text ?? "");
+        }
     }
 
     public static void Stop()
     {
-        if (!_running)
-            return;
-        _running = false;
-        Call("stopDownloadService");
+        lock (Gate)
+        {
+            if (!_running)
+                return;
+            _running = false;
+            Call("stopDownloadService");
+        }
     }
 
     private static bool Call(string method, params Variant[] args)
