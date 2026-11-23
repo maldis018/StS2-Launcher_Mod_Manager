@@ -150,7 +150,7 @@ public class LauncherController
                 ProgressText(p)
             );
         _model.DownloadWaitingForNetwork += (round, secondsLeft) =>
-            DownloadBackgroundService.Update(-1, WaitingText(secondsLeft));
+            DownloadBackgroundService.UpdateText(WaitingText(round, secondsLeft));
         _model.DownloadCompleted += DownloadBackgroundService.Stop;
         _model.DownloadCancelled += DownloadBackgroundService.Stop;
         _model.DownloadPaused += DownloadBackgroundService.Stop;
@@ -260,12 +260,7 @@ public class LauncherController
             {
                 _downloadInterrupted = true;
                 _statusHoldUntilMs = 0;
-                var waitText = WaitingText(secondsLeft);
-                _view.SetStatus(
-                    secondsLeft > 0
-                        ? $"{waitText} ({round}/{LauncherModel.MaxAutoResumeRounds})"
-                        : waitText
-                );
+                _view.SetStatus(WaitingText(round, secondsLeft));
             });
         _model.UpdateCheckCompleted += hasUpdate =>
             _runOnMainThread(() =>
@@ -848,8 +843,19 @@ public class LauncherController
     private async Task RunDownloadAsync(string branch)
     {
         _lastLoggedDownloadFile = null;
-        _downloadInterrupted = false;
         _pickBranchOnResume = false;
+        // Loc's language is read lazily from Godot; load it here on the main
+        // thread because the service updates format texts on worker threads.
+        _ = Loc.IsKo;
+        // Replace a stale "Download paused" / failure text right away; the
+        // first progress events after a short hold switch it to "Downloading...".
+        _view.SetStatus(
+            LauncherModel.HasPendingDownload()
+                ? Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...")
+                : Loc.Tr("다운로드 중...", "Downloading...")
+        );
+        _downloadInterrupted = true;
+        _statusHoldUntilMs = Time.GetTicksMsec() + 2000;
         _view.Download.SetPauseVisible(true);
         DownloadBackgroundService.Start(
             Loc.Tr("게임 파일 다운로드 중", "Downloading game files"),
@@ -868,12 +874,14 @@ public class LauncherController
                 $"{LauncherModel.FormatSize(p.DownloadedBytes)} / {LauncherModel.FormatSize(p.TotalBytes)} ({p.Percentage:F1}%)",
         };
 
-    private static string WaitingText(int secondsLeft) =>
+    // Used for the status line and the notification (the latter on the model's
+    // thread, so nothing here may touch Godot beyond the cached Loc language).
+    private static string WaitingText(int round, int secondsLeft) =>
         secondsLeft > 0
             ? Loc.Tr(
                 $"네트워크 연결을 기다리는 중... {secondsLeft}초 후 재시도",
                 $"Waiting for network... retrying in {secondsLeft}s"
-            )
+            ) + $" ({round}/{LauncherModel.MaxAutoResumeRounds})"
             : Loc.Tr("이전 다운로드를 이어서 받는 중...", "Resuming download...");
 
     // Button label after a download stops: RESUME when partial progress is

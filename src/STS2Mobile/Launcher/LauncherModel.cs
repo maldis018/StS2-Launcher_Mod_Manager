@@ -496,8 +496,21 @@ public class LauncherModel : IDisposable
             _downloader?.Dispose();
             _downloader = new DepotDownloader(_connection, _dataDir);
             _downloader.LogMessage += msg => DownloadLogReceived?.Invoke(msg);
-            _downloader.ProgressChanged += p => DownloadProgressChanged?.Invoke(p);
+            _downloader.ProgressChanged += p =>
+            {
+                _lastProgress = p;
+                DownloadProgressChanged?.Invoke(p);
+            };
             _downloader.RetryScheduled += info => DownloadRetrying?.Invoke(info);
+
+            // Pure .NET heartbeat, independent of Godot: tells a stalled
+            // download (no lines at all) from a quiet one (lines with no growth).
+            using var aliveTimer = new System.Threading.Timer(
+                _ => LogAlive(_downloader),
+                null,
+                AliveIntervalMs,
+                AliveIntervalMs
+            );
 
             var resolvedBranch = branch ?? LoadSelectedBranch();
 
@@ -578,6 +591,36 @@ public class LauncherModel : IDisposable
     }
 
     public bool IsDownloadRunning => _downloadRunning;
+
+    private const int AliveIntervalMs = 15000;
+    private volatile DownloadProgress _lastProgress;
+    private int _aliveLogging;
+
+    // Runs on a thread-pool thread. Skips a tick while the previous one is
+    // still writing, so a blocked log sink can't pile up threads.
+    private void LogAlive(DepotDownloader downloader)
+    {
+        if (downloader == null || Interlocked.Exchange(ref _aliveLogging, 1) == 1)
+            return;
+        try
+        {
+            var p = _lastProgress;
+            PatchHelper.Log(
+                $"[Depot] alive: fetched={downloader.FetchedBytes} downloaded={(p == null ? 0 : Interlocked.Read(ref p.DownloadedBytes))} phase={(p == null ? "none" : p.Phase.ToString())}"
+            );
+            var stuck = DownloadBackgroundService.DescribeStuckCall();
+            if (stuck != null)
+                PatchHelper.Log($"[Launcher] Download service bridge call {stuck}");
+        }
+        catch (Exception ex)
+        {
+            PatchHelper.Log($"[Launcher] alive log failed: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _aliveLogging, 0);
+        }
+    }
 
     // Stops the running download but keeps everything fetched so far; the
     // next StartDownloadAsync resumes from there. Chunks already in flight
