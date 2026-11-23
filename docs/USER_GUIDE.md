@@ -1,5 +1,7 @@
 # StS2 Launcher Redux 사용설명서
 
+English: [USER_GUIDE.en.md](USER_GUIDE.en.md)
+
 처음 설치하는 사용자를 위한 단계별 가이드입니다. 각 단계마다 폰 화면이 어떻게 보이는지 스크린샷과 함께 설명합니다.
 
 > **검증된 환경**: Galaxy Z Fold7 (메인 + 커버 화면 양쪽). 다른 폼팩터 (태블릿 등) 는 [이슈 #6](https://github.com/iunius612/StS2-Launcher_Mod_Manager/issues/6) 참조.
