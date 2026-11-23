@@ -218,7 +218,7 @@ public class LauncherModel : IDisposable
             SetState(
                 SessionState.Failed,
                 Loc.Tr(
-                    "Steam에 연결할 수 없습니다. 인터넷 연결을 확인하세요.",
+                    "Steam에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.",
                     "Could not connect to Steam. Check your internet connection."
                 )
             );
