@@ -7,8 +7,11 @@
 #   - Ekyso StS2-Launcher v0.2.0 APK: BCL, mono/Spine natives, libgodot_android.so
 #     (the custom engine), 0Harmony.dll and GodotSharp.dll compile references.
 #   - iunius612 StS2-Launcher_Mod_Manager v0.4.2 APK: the FMOD 2.03.13 runtime
-#     (libfmod.so, libfmodstudio.so) and the patched libGodotFmod build that
-#     android/libs/README.md requires (issue #78). Ekyso's APK has FMOD 2.02.
+#     (libfmod.so, libfmodstudio.so), its matching org.fmod Java classes, and
+#     the patched libGodotFmod build that android/libs/README.md requires
+#     (issue #78). Ekyso's APK has FMOD 2.02; its Java classes lack methods
+#     the 2.03 libfmod.so looks up over JNI (FMOD.supportsSpatial), which
+#     aborts the app on the first frame, so they must not be mixed.
 #   - Godot 4.5.1 mono export templates: the godot-lib AAR.
 #   - dex2jar v2.4: turns the org.fmod classes in classes.dex back into fmod.jar
 #     (the FMOD SDK download itself needs an FMOD account).
@@ -122,8 +125,8 @@ PYEOF
 fi
 
 log "Extracting APKs"
-unzip -q "$DEPS_CACHE/ekyso-v0.2.0.apk" 'lib/arm64-v8a/*' 'assets/dotnet_bcl/*' 'classes*.dex' -d "$WORK/ekyso"
-unzip -q "$DEPS_CACHE/modmanager-v0.4.2.apk" 'lib/arm64-v8a/*' -d "$WORK/mm"
+unzip -q "$DEPS_CACHE/ekyso-v0.2.0.apk" 'lib/arm64-v8a/*' 'assets/dotnet_bcl/*' -d "$WORK/ekyso"
+unzip -q "$DEPS_CACHE/modmanager-v0.4.2.apk" 'lib/arm64-v8a/*' 'classes*.dex' -d "$WORK/mm"
 
 log "Populating android/libs"
 for dir in "$LIBS_RELEASE" "$LIBS_DEBUG"; do
@@ -145,18 +148,21 @@ done
 cp -f "$AAR_CACHE/godot-lib.template_release.aar" "$LIBS_RELEASE/"
 cp -f "$AAR_CACHE/godot-lib.template_debug.aar" "$LIBS_DEBUG/"
 
-log "Rebuilding fmod.jar from classes.dex"
+log "Rebuilding fmod.jar from the v0.4.2 classes.dex (FMOD 2.03.13)"
 unzip -q "$DEPS_CACHE/dex-tools-v2.4.zip" -d "$WORK/dex2jar"
 D2J="$(find "$WORK/dex2jar" -name d2j-dex2jar.sh | head -n1)"
 [ -n "$D2J" ] || fail "d2j-dex2jar.sh not found in dex-tools zip"
 chmod +x "$(dirname "$D2J")"/*.sh
 mkdir -p "$WORK/classes"
-for dex in "$WORK/ekyso/"classes*.dex; do
+for dex in "$WORK/mm/"classes*.dex; do
     "$D2J" -f -o "$WORK/$(basename "$dex" .dex).jar" "$dex" >/dev/null 2>&1 \
         || fail "dex2jar failed on $(basename "$dex")"
     unzip -qo "$WORK/$(basename "$dex" .dex).jar" 'org/fmod/*' -d "$WORK/classes" 2>/dev/null || true
 done
 [ -f "$WORK/classes/org/fmod/FMOD.class" ] || fail "org.fmod.FMOD not found in classes.dex"
+# libfmod.so 2.03 calls this over JNI; a 2.02 FMOD.class crashes the app at start.
+grep -aq supportsSpatial "$WORK/classes/org/fmod/FMOD.class" \
+    || fail "org.fmod.FMOD has no supportsSpatial(): Java classes do not match FMOD 2.03.13"
 (cd "$WORK/classes" && jar cf "$WORK/fmod.jar" org/fmod)
 cp -f "$WORK/fmod.jar" "$LIBS_RELEASE/fmod.jar"
 cp -f "$WORK/fmod.jar" "$LIBS_DEBUG/fmod.jar"
