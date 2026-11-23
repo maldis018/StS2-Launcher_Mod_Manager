@@ -81,13 +81,28 @@ To run the import again later, open **MOD MANAGER > LOCAL > Import from StS2Laun
 
 ## 3. Sign in to Steam
 
-When the launcher shows the sign-in screen, enter your Steam account details.
+The sign-in screen shows a QR code. There are two ways to sign in.
+
+### Sign in with another phone or tablet (recommended)
+
+1. On the other device, open the Steam app and go to the QR scanner in the **Steam Guard** tab.
+2. Scan the QR code on the launcher screen and approve the sign-in in the Steam app.
+
+You never type your password, so the launcher never sees it. If the code expires or you deny the request, tap **NEW CODE** to try again.
+
+### Sign in with only this phone
+
+1. Tap **SIGN IN ON THIS PHONE**.
+2. Enter your Steam account name and password, then tap **LOGIN**.
+3. If you have the Steam mobile app, it asks you to approve the sign-in. Otherwise, enter the Steam Guard code you received (for example by email).
+
+Your password is sent to Steam once and never stored. To go back to the QR code, tap **Use a QR code from another device instead**.
 
   <img src="images/5.jpg" width="600">
 
-### Steam Guard 2FA warning
+### Steam Guard code warning
 
-If you switch to another app (such as the Steam mobile app) to get your two-factor code, **the sign-in session fails after the launcher has been in the background for only about 5 to 10 seconds**, and you have to start over.
+When you sign in on this phone and switch to another app (such as the Steam mobile app) to get your two-factor code, **the sign-in session fails after the launcher has been in the background for only about 5 to 10 seconds**, and you have to start over.
 
   <img src="images/6.jpg" width="600">
 
@@ -110,6 +125,8 @@ After you sign in, if there are no game files yet, the **branch picker** appears
 Pick a branch and start the download. The game is about **3 GB**, so Wi-Fi is recommended.
 
   <img src="images/9.jpg" width="600">
+
+While the download runs you can tap **PAUSE**; everything downloaded so far is kept. Tap **RESUME DOWNLOAD** to continue from where it stopped. If the connection drops or the app is closed, the download also resumes next time. The download can stall with the screen off, so keep the screen on until it finishes.
 
 ---
 
