@@ -65,7 +65,11 @@ public static class ModEntry
         // must match android/gradle.properties export_package_name.
         try
         {
-            const string tmpDir = "/data/user/0/com.game.sts2launcher.modmanager/cache/MonoMod";
+            var filesRoot = ResolveFilesDir();
+            var tmpDir =
+                filesRoot != null
+                    ? Path.Combine(Path.GetDirectoryName(filesRoot), "cache", "MonoMod")
+                    : "/data/user/0/com.game.sts2launcher.modmanager/cache/MonoMod";
             Directory.CreateDirectory(tmpDir);
             System.Environment.SetEnvironmentVariable("TMPDIR", tmpDir);
             int cleaned = TryCleanStaleMonoModFiles(tmpDir);
@@ -186,24 +190,89 @@ public static class ModEntry
     }
 
     // Mirrors GodotApp.getCommandLine, which picks the bootstrap PCK exactly when
-    // files/game/SlayTheSpire2.pck does not exist. Same package-private path as
-    // the TMPDIR override in Apply(); no Godot API, so it is safe this early.
-    // Keep both sides on this one condition (the PCK is renamed into place only
-    // after a complete download, so existence means finished).
-    private const string GamePckPath =
-        "/data/user/0/com.game.sts2launcher.modmanager/files/game/SlayTheSpire2.pck";
-
+    // <filesDir>/game/SlayTheSpire2.pck does not exist. Uses no Godot API, so it
+    // is safe this early. Keep both sides on this one condition (the PCK is
+    // renamed into place only after a complete download, so existence means
+    // finished).
+    //
+    // The files dir is derived at runtime so renamed or test builds (another
+    // package id) work. If it cannot be derived this returns false (old
+    // behavior: try the game patches, the catch below falls back to the
+    // standalone launcher), never "launcher only", which would stop the game
+    // from starting.
     private static bool BootedOnBootstrapPck()
     {
         try
         {
-            return !File.Exists(GamePckPath);
+            var filesDir = ResolveFilesDir();
+            if (filesDir == null)
+            {
+                PatchHelper.Log("Game PCK path: unresolved (files dir unknown)");
+                return false;
+            }
+            var pck = Path.Combine(filesDir, "game", "SlayTheSpire2.pck");
+            PatchHelper.Log($"Game PCK path: {pck}");
+            return !File.Exists(pck);
         }
-        catch
+        catch (Exception ex)
         {
-            // Unreadable: Java's File.exists() would have said false too.
-            return true;
+            PatchHelper.Log($"Game PCK path check failed: {ex.Message}");
+            return false;
         }
+    }
+
+    private static string _filesDir;
+    private static bool _filesDirResolved;
+
+    // The app's getFilesDir(), or null. First choice: the directory this
+    // assembly was loaded from (GodotApp.setupAssemblies copies assemblies to
+    // <filesDir>/.godot/mono/publish/arm64), walked up to the "files" ancestor.
+    // Second: the package name in /proc/self/cmdline.
+    private static string ResolveFilesDir()
+    {
+        if (_filesDirResolved)
+            return _filesDir;
+        _filesDirResolved = true;
+
+        try
+        {
+            foreach (var start in new[] { typeof(ModEntry).Assembly.Location, AppContext.BaseDirectory })
+            {
+                if (string.IsNullOrEmpty(start))
+                    continue;
+                var dir = Path.GetDirectoryName(start.TrimEnd('/'));
+                while (!string.IsNullOrEmpty(dir))
+                {
+                    if (
+                        Path.GetFileName(dir) == "files"
+                        && dir.StartsWith("/data/")
+                        && Directory.Exists(dir)
+                    )
+                        return _filesDir = dir;
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var raw = File.ReadAllBytes("/proc/self/cmdline");
+            int end = Array.IndexOf(raw, (byte)0);
+            var name = System.Text.Encoding.UTF8.GetString(raw, 0, end < 0 ? raw.Length : end);
+            int colon = name.IndexOf(':');
+            if (colon >= 0)
+                name = name.Substring(0, colon);
+            if (name.Contains('.') && !name.Contains('/'))
+            {
+                var dir = $"/data/user/0/{name}/files";
+                if (Directory.Exists(dir))
+                    return _filesDir = dir;
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     private static int TryCleanStaleMonoModFiles(string dir)
