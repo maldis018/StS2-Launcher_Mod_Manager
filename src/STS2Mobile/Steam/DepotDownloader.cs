@@ -574,7 +574,7 @@ public class DepotDownloader : IDisposable
             var path = Path.Combine(_gameDir, fileName.Replace('\\', '/'));
             if (File.Exists(path))
             {
-                File.Delete(path);
+                Storage(fileName, () => File.Delete(path));
                 Log($"Deleted: {fileName}");
             }
         }
@@ -645,7 +645,10 @@ public class DepotDownloader : IDisposable
                 ExceptionDispatchInfo.Capture(firstError).Throw();
         }
 
-        SaveManifest(plan.DepotId, plan.Manifest, plan.ManifestId);
+        Storage(
+            $"depot {plan.DepotId} manifest",
+            () => SaveManifest(plan.DepotId, plan.Manifest, plan.ManifestId)
+        );
         Log($"Depot {plan.DepotId} complete");
     }
 
