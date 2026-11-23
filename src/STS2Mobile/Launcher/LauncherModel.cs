@@ -526,8 +526,13 @@ public class LauncherModel : IDisposable
             WriteCacheStampAfterDownload(resolvedBranch, _downloader.LastDownloadedBuildId);
             DownloadCompleted?.Invoke();
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        // Any error once the user has cancelled is part of stopping (a request
+        // in flight can fail with a network error instead of a cancel), so it
+        // is reported as a cancel, not a failure.
+        catch (Exception ex) when (token.IsCancellationRequested)
         {
+            if (ex is not OperationCanceledException)
+                PatchHelper.Log($"[Launcher] Download stopped by user; ignoring {ex.GetType().Name}: {ex.Message}");
             DownloadCancelled?.Invoke();
         }
         catch (Exception ex)

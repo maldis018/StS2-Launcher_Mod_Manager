@@ -637,9 +637,12 @@ public class DepotDownloader : IDisposable
 
             await Task.WhenAll(tasks);
 
+            // A user cancel wins over a worker error: a chunk still in flight
+            // when the user paused can fail with an ordinary network error,
+            // and that must not turn the pause into a failed download.
+            ct.ThrowIfCancellationRequested();
             if (firstError != null)
                 ExceptionDispatchInfo.Capture(firstError).Throw();
-            ct.ThrowIfCancellationRequested();
         }
 
         SaveManifest(plan.DepotId, plan.Manifest, plan.ManifestId);
