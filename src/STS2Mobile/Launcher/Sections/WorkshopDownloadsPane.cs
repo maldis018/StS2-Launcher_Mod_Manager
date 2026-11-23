@@ -105,7 +105,7 @@ public class WorkshopDownloadsPane : VBoxContainer
         }
 
         SetStatus(
-            Loc.Tr($"아이템 {entries.Count}개.", $"{entries.Count} item(s)."),
+            Loc.Tr($"아이템 {entries.Count}개", $"{entries.Count} item(s)."),
             InfoColor
         );
         foreach (var entry in entries)

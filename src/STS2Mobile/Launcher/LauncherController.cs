@@ -388,7 +388,7 @@ public class LauncherController
                 _view.SetStatus(
                     _model.SavedTokenExpiringSoon
                         ? Loc.Tr(
-                            $"{_model.AccountName}님, 환영합니다 (Steam 로그인이 곧 만료됩니다. 다시 로그인하는 것을 권장합니다)",
+                            $"{_model.AccountName}님, 환영합니다. Steam 로그인이 곧 만료되니 다시 로그인해 주세요.",
                             $"Welcome back, {_model.AccountName} (Steam login expires soon; consider logging in again)"
                         )
                         : WelcomeText()
@@ -1089,7 +1089,7 @@ public class LauncherController
                 if (showLatestDialog)
                     _view.ShowConfirmation(
                         Loc.Tr(
-                            "이미 최신 버전의 런처입니다.\n\nGitHub 릴리즈 페이지를 열어 볼까요?",
+                            "이미 최신 버전의 런처입니다.\n\nGitHub 릴리스 페이지를 열어 볼까요?",
                             "You're already on the latest launcher version.\n\nOpen the GitHub releases page anyway?"
                         ),
                         onConfirmed: () => OS.ShellOpen(ReleasesPageUrl),
@@ -1120,7 +1120,7 @@ public class LauncherController
         {
             _view.ShowConfirmation(
                 Loc.Tr(
-                    $"런처 v{result.LatestVersion} 업데이트가 있지만 릴리즈에 APK 파일이 첨부되어 있지 않습니다.\n\n브라우저에서 GitHub 릴리즈 페이지를 열까요?",
+                    $"런처 v{result.LatestVersion} 업데이트가 있지만 릴리스에 APK 파일이 첨부되어 있지 않습니다.\n\n브라우저에서 GitHub 릴리스 페이지를 열까요?",
                     $"Launcher v{result.LatestVersion} is available, but no APK asset was attached.\n\nOpen the GitHub releases page in a browser?"
                 ),
                 onConfirmed: () => OS.ShellOpen(ReleasesPageUrl),
@@ -1327,7 +1327,7 @@ public class LauncherController
                 "이미지 캐시 삭제\n\n"
                     + "카드, 유물, 포션 등의 이미지가 잘못 표시될 때 사용하세요.\n"
                     + "게임 텍스처 캐시(약 660개)를 삭제하고 앱을 재시작합니다.\n\n"
-                    + "· 다음 실행이 30~60초 더 걸립니다 (텍스처를 다시 가져옵니다)\n"
+                    + "· 다음 실행이 30~60초 더 걸립니다 (텍스처를 다시 변환합니다)\n"
                     + "· 게임을 다시 다운로드하지 않습니다\n"
                     + "· 세이브, 진행도, 로그인 정보는 유지됩니다",
                 "Clear image index cache\n\n"

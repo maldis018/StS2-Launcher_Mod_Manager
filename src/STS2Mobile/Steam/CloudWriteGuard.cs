@@ -85,7 +85,7 @@ public static class CloudWriteGuard
             {
                 reason =
                     Loc.Tr(
-                        $"빈 데이터({newByteLength} bytes) 쓰기를 차단했습니다. "
+                        $"빈 데이터({newByteLength}바이트) 쓰기를 차단했습니다. "
                             + "아직 클라우드 상태를 확인하지 못해 안전을 위해 보류했습니다.",
                         $"Blocked an empty write ({newByteLength} bytes). "
                             + "The cloud state hasn't been verified yet, so the write was held back to be safe."
@@ -111,7 +111,7 @@ public static class CloudWriteGuard
 
             reason =
                 Loc.Tr(
-                    $"빈 데이터({newByteLength} bytes)가 클라우드의 기존 세이브({cloudSize} bytes)를 "
+                    $"빈 데이터({newByteLength}바이트)가 클라우드의 기존 세이브({cloudSize}바이트)를 "
                         + "덮어쓰려 해서 차단했습니다.",
                     $"Blocked an empty write ({newByteLength} bytes) that would have overwritten the existing cloud save ({cloudSize} bytes)."
                 );

@@ -85,10 +85,11 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | UP TO DATE | 최신 버전 | button state | Google Play wording. |
 | CHECK FAILED | 확인 실패 | button state | |
 | Checking... | 확인 중... | button state | |
-| Loading branches... | 브랜치 불러오는 중... | button state | |
+| Loading branches... | 브랜치를 불러오는 중... / 불러오는 중... | download status / game update button | The button uses the short form so it fits. |
 | v1.2.3 available | v1.2.3 업데이트 가능 | button state | |
 | Debug: ON / OFF | 디버그: 켜짐 / 꺼짐 | Console header | |
 | Update available! | 업데이트가 있습니다 | status | |
+| Release (GitHub) | 릴리스 | update dialogs, docs | GitHub's Korean UI and the standard spelling. Never 릴리즈. |
 | Branch | 브랜치 | | Steam Korean client: "베타" tab, but the launcher selects real Steam branches (`public`, `public-beta`), so 브랜치 is used, and 베타 only for "beta branches". |
 
 ### Dialogs
@@ -109,6 +110,7 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | Import / Not now | 가져오기 / 나중에 | legacy import prompt | |
 | Log in again / Continue offline | 다시 로그인 / 오프라인으로 계속 | token expired | Already used. |
 | Overwrite | 덮어쓰기 | | Already used. |
+| Mod Hub confirm buttons | 구독 취소 / 닫기, 삭제 / 취소, 덮어쓰기 / 취소, 교체 / 취소, 받기 / 나중에, 구독 / 취소 | Mod Hub confirmations | Passed through `ConfirmHandler`'s okLabel / cancelLabel. An unsubscribe prompt must not offer a bare 취소, which reads as "cancel the subscription". |
 
 ### Mod Hub
 
@@ -120,7 +122,7 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | TAGS | 태그 | | |
 | LOAD MORE | 더 보기 | | |
 | SUBSCRIBE / UNSUBSCRIBE | 구독 / 구독 취소 | cards, rows, detail | Steam Korean client wording. |
-| DETAIL | 상세 | cards, rows, detail | The buttons are narrow, so the short form 상세 is used everywhere. Android's longer form is 상세 정보. |
+| DETAIL | 자세히 | cards, rows | 상세 alone reads like a cut-off noun on a button; 자세히 is the common Korean app label and is as short. The page it opens is still called 상세 페이지 in the docs. |
 | DISABLE / ENABLE | 비활성화 / 활성화 | rows, detail | **Review.** The mod folder moves to `ModsDisabled/` (a "stash"), so it is not a delete. Alternatives: 끄기 / 켜기 (shorter, but implies the mod stays in place), 보관 / 복구. |
 | Disabled (badge) | 비활성 | | |
 | Installed / Update available / Subscribed (badges) | 설치됨 / 업데이트 있음 / 구독 중 | | |
@@ -145,13 +147,13 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | English | Korean | Where | Reason, alternatives |
 |---|---|---|---|
 | subscribers / rated | 구독자 N명 / 평점 N% | Workshop card | **Review.** Steam's own wording is "긍정적 평가 N%". |
-| Unmanaged, root files (badge) | 미관리 · 루트 파일 | LOCAL row | **Review.** Alternatives: 관리 안 됨, 미관리 only (shorter). |
+| Unmanaged, root files (badge) | 관리 안 됨 · 루트 파일 | LOCAL row | 미관리 is rare outside formal writing. |
 | USE WORKSHOP | 창작마당 버전 사용 | subscribed conflict row | **Review.** Alternatives: 창작마당 사용 (shorter), 창작마당으로 교체. |
 | manually installed | 수동 설치 | | Alternative: 직접 설치. |
 | Workshop item | 아이템 | | Steam Korean client wording. Alternative: 항목. |
 | by Author | 제작자: Author | | Alternative: 제작. |
 | Min game version / Path | 최소 게임 버전 / 경로 | detail | |
-| Update notes (detail tab) | 업데이트 노트 | detail page | Already used. Alternative: 변경 사항 (Steam wording, shorter). |
+| Change notes (detail tab) | 변경 사항 | detail page | Shorter for the compact tab bar and, to our knowledge, Steam's Korean Workshop wording (not verified online). Was 업데이트 노트. |
 | Back-press toast | 한 번 더 누르면 종료됩니다 | Android toast | |
 | (private) branch suffix | (비공개) | branch picker | |
 

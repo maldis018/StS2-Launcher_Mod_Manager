@@ -89,7 +89,7 @@ public class LauncherUpdateDialog : ColorRect
         {
             _progressBar.Value = 0;
             _statusLabel.Text = Loc.Tr(
-                $"{Loc.Size(downloadedBytes)} 받음",
+                $"{Loc.Size(downloadedBytes)} 다운로드됨",
                 $"{LauncherModel.FormatSize(downloadedBytes)} downloaded"
             );
         }

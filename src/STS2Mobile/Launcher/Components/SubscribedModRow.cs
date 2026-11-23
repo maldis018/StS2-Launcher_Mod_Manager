@@ -70,7 +70,7 @@ public class SubscribedModRow : PanelContainer
         vbox.AddChild(statusLabel);
 
         var detailButton = new StyledButton(
-            Loc.Tr("상세", "DETAIL"),
+            Loc.Tr("자세히", "DETAIL"),
             scale,
             fontSize: btnFont,
             height: btnHeight,

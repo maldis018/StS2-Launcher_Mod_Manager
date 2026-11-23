@@ -16,7 +16,7 @@ namespace STS2Mobile.Launcher.Sections;
 // ModManagerSection's existing import-pipeline pattern.
 public class WorkshopBrowserPane : VBoxContainer
 {
-    public event Action<string, Action, Action> ConfirmationRequested;
+    public event ConfirmHandler ConfirmationRequested;
 
     private const uint PerPage = 20;
     private const ulong LargeDownloadWarningBytes = 50 * 1024 * 1024;
@@ -745,7 +745,8 @@ public class WorkshopBrowserPane : VBoxContainer
                 Loc.Tr(
                     $"'{item.Title}'의 크기는 {size}입니다. 구독하고 다운로드할까요?",
                     $"'{item.Title}' is {size}. Subscribe and download?"
-                )
+                ),
+                okLabel: Loc.Tr("구독", "OK")
             );
             if (!confirmed)
             {
@@ -854,7 +855,9 @@ public class WorkshopBrowserPane : VBoxContainer
             Loc.Tr(
                 $"'{item.Title}' 구독을 취소할까요? 기기에서 모드가 삭제됩니다.",
                 $"Unsubscribe from '{item.Title}'? This removes the mod from your device."
-            )
+            ),
+            okLabel: Loc.Tr("구독 취소", "OK"),
+            cancelLabel: Loc.Tr("닫기", "Cancel")
         );
         if (!confirmed)
         {
@@ -996,7 +999,11 @@ public class WorkshopBrowserPane : VBoxContainer
         _statusLabel.AddThemeColorOverride("font_color", color);
     }
 
-    private Task<bool> ConfirmAsync(string message)
+    private Task<bool> ConfirmAsync(
+        string message,
+        string okLabel = null,
+        string cancelLabel = null
+    )
     {
         var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -1005,7 +1012,9 @@ public class WorkshopBrowserPane : VBoxContainer
             ConfirmationRequested?.Invoke(
                 message,
                 () => tcs.TrySetResult(true),
-                () => tcs.TrySetResult(false)
+                () => tcs.TrySetResult(false),
+                okLabel,
+                cancelLabel
             )
         );
         return tcs.Task;

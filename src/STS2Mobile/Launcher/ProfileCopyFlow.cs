@@ -96,8 +96,8 @@ public static class ProfileCopyFlow
         bool excludesCurrentRun = src.IsModded && !dst.IsModded;
         var confirmMsg =
             Loc.Tr(
-                $"프로필 {src.ProfileNumber}{(src.IsModded ? " · 모드" : "")} → "
-                    + $"프로필 {dst.ProfileNumber}{(dst.IsModded ? " · 모드" : "")} 복제\n\n"
+                $"프로필 {src.ProfileNumber}{(src.IsModded ? "(모드)" : "")}의 데이터를 "
+                    + $"프로필 {dst.ProfileNumber}{(dst.IsModded ? "(모드)" : "")}에 복제할까요?\n\n"
                     + "대상 프로필의 현재 데이터를 덮어씁니다. 진행하기 전에 로컬 백업이 자동으로 만들어집니다.",
                 $"Copy Profile {src.ProfileNumber}{(src.IsModded ? " (Modded)" : "")} to "
                     + $"Profile {dst.ProfileNumber}{(dst.IsModded ? " (Modded)" : "")}.\n\n"
@@ -245,7 +245,7 @@ public static class ProfileCopyFlow
                 await SimpleResultDialog.ShowAsync(
                     parent,
                     true,
-                    Loc.Tr($"복제 완료, 클라우드에도 올렸습니다 (파일 {result.FileCount}개).", $"Copy complete and uploaded to the cloud ({Loc.Files(result.FileCount)})."),
+                    Loc.Tr($"복제를 완료하고 클라우드에도 올렸습니다 (파일 {result.FileCount}개).", $"Copy complete and uploaded to the cloud ({Loc.Files(result.FileCount)})."),
                     scale
                 );
             }
@@ -405,7 +405,7 @@ public static class ProfileCopyFlow
 
             var msg = outcome switch
             {
-                CloudBatchOutcome.Success => Loc.Tr($"복원 완료, 클라우드에도 올렸습니다 (파일 {result.FileCount}개).", $"Restore complete and uploaded to the cloud ({Loc.Files(result.FileCount)})."),
+                CloudBatchOutcome.Success => Loc.Tr($"복원을 완료하고 클라우드에도 올렸습니다 (파일 {result.FileCount}개).", $"Restore complete and uploaded to the cloud ({Loc.Files(result.FileCount)})."),
                 CloudBatchOutcome.TimedOut =>
                     Loc.Tr("클라우드에 올리는 중 시간이 초과되었습니다. 일부 파일은 올라가지 않았을 수 있습니다.", "The cloud upload timed out. Some files may not have been uploaded."),
                 _ => Loc.Tr("클라우드에 올리는 중 오류가 발생했습니다. 로그를 확인하세요.", "An error occurred during the cloud upload. Check the log."),

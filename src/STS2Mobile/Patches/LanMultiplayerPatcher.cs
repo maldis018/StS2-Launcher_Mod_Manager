@@ -243,7 +243,7 @@ public static class LanMultiplayerPatcher
             var screen = (Node)__instance;
 
             var titleLabel = screen.GetNode("TitleLabel");
-            _setTextAutoSize?.Invoke(titleLabel, new object[] { "JOIN LAN GAME" });
+            _setTextAutoSize?.Invoke(titleLabel, new object[] { Loc.Tr("LAN 게임 참가", "JOIN LAN GAME") });
 
             var noFriendsLabel = _noFriendsLabelField?.GetValue(__instance);
             if (noFriendsLabel != null)

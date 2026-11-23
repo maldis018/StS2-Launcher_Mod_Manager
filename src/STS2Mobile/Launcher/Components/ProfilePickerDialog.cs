@@ -298,7 +298,7 @@ public class ProfilePickerDialog : ColorRect
                 Loc.Tr($"동기화됨 · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}", $"Synced · {slot.LocalSummary.FormatSize()} · {slot.LocalSummary.FormatPlaytime()}"),
             SyncDecision.Conflict =>
                 Loc.Tr($"로컬 {slot.LocalSummary.FormatSize()} / 클라우드 {slot.CloudSummary.FormatSize()}", $"Local {slot.LocalSummary.FormatSize()} vs Cloud {slot.CloudSummary.FormatSize()}"),
-            SyncDecision.Unverified => Loc.Tr("일시적으로 클라우드를 확인하지 못했습니다. 다시 시도해 주세요", "Couldn't reach the cloud right now · Please try again"),
+            SyncDecision.Unverified => Loc.Tr("일시적으로 클라우드를 확인하지 못했습니다. 다시 시도해 주세요.", "Couldn't reach the cloud right now · Please try again"),
             _ => "",
         };
     }

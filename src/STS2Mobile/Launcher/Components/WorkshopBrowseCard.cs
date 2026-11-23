@@ -107,7 +107,7 @@ public class WorkshopBrowseCard : PanelContainer
         // Explicit detail entry, left of the action button — replaces card-body
         // tap so scrolling and tapping never fight over the same touch.
         var detailButton = new StyledButton(
-            Loc.Tr("상세", "DETAIL"),
+            Loc.Tr("자세히", "DETAIL"),
             scale,
             fontSize: btnFont,
             height: btnHeight,

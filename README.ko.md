@@ -4,7 +4,7 @@
 
 안드로이드에서 모드와 함께 **Slay the Spire 2**를 플레이하세요. StS2 Launcher Redux는 Steam에 로그인해 보유한 게임을 Steam에서 직접 받고, 커스텀 Godot 4.5.1 엔진 빌드 위에서 실행하며, Harmony 런타임 패치로 데스크톱 게임을 터치 화면에 맞게 바꿉니다. 모드(Steam 창작마당 포함), Steam 클라우드 세이브, 로컬 백업도 관리합니다.
 
-**최신 릴리즈: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
+**최신 릴리스: [v0.5.0](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases/latest)**
 
 > StS2 Launcher Redux는 비공식 팬 프로젝트이며, Slay the Spire 2의 개발·배급사인 Mega Crit Games와 제휴하거나 보증·지원을 받지 않습니다. 게임을 보유한 Steam 계정이 필요하며, 이 저장소와 앱에는 게임 파일이 포함되어 있지 않습니다.
 
@@ -49,9 +49,9 @@ Redux는 별도 앱(패키지 `dev.aldis.sts2launcherredux`, 폴더 `/storage/em
 - 수동 설치, `.zip` 가져오기, 그리고 모드를 지우지 않고 게임에서만 숨기는 **비활성화**.
 
 **세이브**
-- 전체 Steam 클라우드 동기화. 로컬과 클라우드가 다르면 (진행 중인 런 포함) 나란히 보여 주고 어느 쪽을 남길지 직접 고르게 합니다. 시간 기준으로 몰래 고르지 않습니다. **게임 시작** 전에, 또는 언제든 **세이브 관리**에서 합니다.
+- 전체 Steam 클라우드 동기화. 로컬과 클라우드가 다르면 (진행 중인 런 포함) 나란히 보여 주고 어느 쪽을 남길지 직접 고르게 합니다. 시간 기준으로 자동으로 고르지 않습니다. **게임 시작** 전에, 또는 언제든 **세이브 관리**에서 합니다.
 - 클라우드가 빈 세이브나 새 세이브로 덮어써지는 것을 막는 보호 장치.
-- **로컬 백업**: 수동 스냅샷(직접 지우기 전까지 보관)과 클라우드 동기화 전마다 찍는 자동 스냅샷으로 잘못 고른 선택도 되돌릴 수 있습니다.
+- **로컬 백업**: 수동 스냅샷(직접 지우기 전까지 보관)과 클라우드 동기화 전마다 찍는 자동 스냅샷으로 잘못된 선택도 되돌릴 수 있습니다.
 
 **휴대폰에서**
 - 터치 조작과 UI 배율, 화면 회전, 폴더블(접기/펴기), 분할 화면, 울트라와이드 화면.
@@ -63,7 +63,7 @@ Redux는 별도 앱(패키지 `dev.aldis.sts2launcherredux`, 폴더 `/storage/em
 
 **Steam 창작마당 (가장 쉬움):** 실행 화면에서 **모드 관리**를 누르고 **창작마당** 탭에서 모드를 찾아 구독합니다. 다운로드와 업데이트는 자동이며, 구독을 취소하면 모드가 삭제됩니다.
 
-**직접 설치:** 모드마다 폴더 하나씩 `/storage/emulated/0/StS2LauncherRedux/Mods/` 아래에 넣습니다. 모드 폴더에는 모드의 `.dll`, 선택적 `.pck`, `<ModId>.json` 매니페스트가 들어 있으며, PC의 `Steam\steamapps\common\Slay the Spire 2\mods\`와 같은 구조입니다. 일부 파일 매니저(삼성 내 파일 등)는 이 폴더를 보지 못하니 [ZArchiver](https://play.google.com/store/apps/details?id=ru.zdevs.zarchiver)를 쓰세요. **모드 관리 > 로컬**의 **모드 가져오기 (.zip)**도 쓸 수 있습니다.
+**직접 설치:** 모드마다 폴더 하나씩 `/storage/emulated/0/StS2LauncherRedux/Mods/` 아래에 넣습니다. 모드 폴더에는 모드의 `.dll`, 선택적 `.pck`, `<ModId>.json` 매니페스트가 들어 있으며, PC의 `Steam\steamapps\common\Slay the Spire 2\mods\`와 같은 구조입니다. 일부 파일 매니저(삼성 내 파일 등)는 이 폴더를 보지 못하니 [ZArchiver](https://play.google.com/store/apps/details?id=ru.zdevs.zarchiver)를 쓰세요. **모드 관리 > 로컬**의 **모드 가져오기 (.zip)** 버튼도 쓸 수 있습니다.
 
 ![Mods 폴더 구조](docs/images/mods_folder.jpg)
 
@@ -107,9 +107,9 @@ Redux는 포크 계보의 세 번째 프로젝트입니다:
 |---|---|---|---|
 | StS2 Launcher | [Ekyso/StS2-Launcher](https://github.com/Ekyso/StS2-Launcher) | 2026년 3월 (v0.1.0, v0.2.0) | 원조 포팅: 커스텀 Godot 엔진 빌드, Harmony 런타임 패칭 ([Ekyso/Harmony](https://github.com/Ekyso/Harmony)), Steam 로그인과 게임 다운로드 |
 | StS2 Launcher Mod | [iunius612/StS2-Launcher_Mod_Manager](https://github.com/iunius612/StS2-Launcher_Mod_Manager) | 2026년 4월 ~ 8월 (v0.2.1 ~ v0.4.2) | 최신 게임 빌드용 모드 로딩, 창작마당 모드 허브, 세이브 안전장치(충돌 선택, 쓰기 가드, 로컬 백업), 런처 자체 업데이트, 폴더블·모바일 UX, LAN 수정 |
-| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | 2026년 11월 ~ (v0.5.0+) | StS2 Launcher Mod v0.4.2에서 분기해 별도로 유지보수: 독자적인 앱 아이덴티티와 폴더, StS2 Launcher Mod에서 가져오기, 한국어 전용 메시지의 영어 번역, 자동 릴리즈 빌드 |
+| StS2 Launcher Redux | [maldis018/StS2-Launcher_Mod_Manager](https://github.com/maldis018/StS2-Launcher_Mod_Manager) | 2026년 11월 ~ (v0.5.0+) | StS2 Launcher Mod v0.4.2에서 분기해 별도로 유지보수: 독자적인 앱 아이덴티티와 폴더, StS2 Launcher Mod에서 가져오기, 한국어 전용 메시지의 영어 번역, 자동 릴리스 빌드 |
 
-엔진 포팅과 모드 매니저는 Ekyso와 iunius612의 작업입니다. v0.4.2까지의 릴리즈 노트(기술 노트 포함)는 [StS2 Launcher Mod의 Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases)에, Redux 릴리즈는 [이 저장소의 Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases)에 있습니다.
+엔진 포팅과 모드 매니저는 Ekyso와 iunius612의 작업입니다. v0.4.2까지의 릴리스 노트(기술 노트 포함)는 [StS2 Launcher Mod의 Releases 페이지](https://github.com/iunius612/StS2-Launcher_Mod_Manager/releases)에, Redux 릴리스는 [이 저장소의 Releases 페이지](https://github.com/maldis018/StS2-Launcher_Mod_Manager/releases)에 있습니다.
 
 ## 소스에서 빌드
 
@@ -153,7 +153,7 @@ STS2_DLL=/path/to/sts2.dll bash scripts/ci/fetch-build-inputs.sh
 echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
 # 3. 빌드와 서명. 테스트 빌드는 아무 키스토어나 됩니다. 디버그 키로 서명한 APK는
-#    릴리즈 키로 설치된 앱을 업데이트할 수 없습니다 (먼저 삭제하세요).
+#    릴리스 키로 설치된 앱을 업데이트할 수 없습니다 (먼저 삭제하세요).
 RELEASE_KEYSTORE_FILE=~/.android/debug.keystore \
 RELEASE_KEYSTORE_ALIAS=androiddebugkey \
 RELEASE_KEYSTORE_PASSWORD=android \
@@ -171,11 +171,11 @@ bash src/stubs/build_stubs.sh           # 네이티브 스텁 재빌드 (NDK 필
 uv run --with cairosvg python art/icon/render_android_icons.py   # 아이콘 다시 렌더링
 ```
 
-### 릴리즈
+### 릴리스
 
 1. `android/gradle.properties`의 `export_version_name`과 `export_version_code`를 바꿉니다. 코드는 major×10000 + minor×100 + patch (0.5.0은 500)이며 올라가기만 해야 합니다.
 2. 커밋하고 `vX.Y.Z` 태그(`export_version_name`과 같아야 함)를 만들어 푸시합니다.
-3. `.github/workflows/release.yml`이 APK를 빌드·서명해 SHA-256과 함께 **초안(draft)** 릴리즈에 첨부합니다. 앱의 업데이트 확인은 초안이 게시된 뒤에야 릴리즈를 봅니다.
+3. `.github/workflows/release.yml`이 APK를 빌드·서명해 SHA-256과 함께 **초안(draft)** 릴리스에 첨부합니다. 앱의 업데이트 확인은 초안이 게시된 뒤에야 릴리스를 봅니다.
 
 ## 라이선스
 

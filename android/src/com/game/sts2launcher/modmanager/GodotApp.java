@@ -345,7 +345,7 @@ public class GodotApp extends GodotActivity {
 		TextView title = new TextView(this);
 		boolean isKo = Locale.getDefault().getLanguage().startsWith("ko");
 		title.setText(isKo
-				? "이미지 인덱스 캐시를 다시 만드는 중입니다"
+				? "이미지 캐시를 다시 만드는 중입니다"
 				: "Rebuilding the image index cache");
 		title.setTextColor(0xFFFFFFFF);
 		title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);

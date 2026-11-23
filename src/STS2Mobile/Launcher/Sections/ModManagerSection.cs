@@ -25,7 +25,7 @@ namespace STS2Mobile.Launcher.Sections;
 public class ModManagerSection : VBoxContainer
 {
     public event Action BackPressed;
-    public event Action<string, Action, Action> ConfirmationRequested;
+    public event ConfirmHandler ConfirmationRequested;
 
     // Raised with true=portrait / false=landscape; the controller applies it to
     // the launcher window and restores landscape when the hub closes.
@@ -157,13 +157,13 @@ public class ModManagerSection : VBoxContainer
         }
 
         _workshopPane = new WorkshopBrowserPane(scale);
-        _workshopPane.ConfirmationRequested += (msg, ok, cancel) =>
-            ConfirmationRequested?.Invoke(msg, ok, cancel);
+        _workshopPane.ConfirmationRequested += (msg, ok, cancel, okLabel, cancelLabel) =>
+            ConfirmationRequested?.Invoke(msg, ok, cancel, okLabel, cancelLabel);
         AddChild(_workshopPane);
 
         _subscribedPane = new WorkshopSubscribedPane(scale);
-        _subscribedPane.ConfirmationRequested += (msg, ok, cancel) =>
-            ConfirmationRequested?.Invoke(msg, ok, cancel);
+        _subscribedPane.ConfirmationRequested += (msg, ok, cancel, okLabel, cancelLabel) =>
+            ConfirmationRequested?.Invoke(msg, ok, cancel, okLabel, cancelLabel);
         AddChild(_subscribedPane);
 
         // --- LOCAL pane ----------------------------------------------------
@@ -646,7 +646,7 @@ public class ModManagerSection : VBoxContainer
             var row = new ModListRow(
                 info,
                 _scale,
-                badge: Loc.Tr("미관리 · 루트 파일", "Unmanaged — root files"),
+                badge: Loc.Tr("관리 안 됨 · 루트 파일", "Unmanaged — root files"),
                 compact: Ui.IsPortrait(this)
             );
             var capturedInfo = info;
@@ -838,7 +838,8 @@ public class ModManagerSection : VBoxContainer
                 );
                 RefreshLocal();
             },
-            null
+            null,
+            okLabel: Loc.Tr("삭제", "OK")
         );
     }
 
@@ -948,7 +949,7 @@ public class ModManagerSection : VBoxContainer
                             : Loc.Tr("가져오기 실패.", "Import failed.")
                     )
                     : Loc.Tr(
-                        $"모드 {imported}/{zipPaths.Length}개를 가져왔습니다"
+                        $"모드 {zipPaths.Length}개 중 {imported}개를 가져왔습니다"
                             + (failed > 0 ? $" (실패 {failed}개)." : "."),
                         $"Imported {imported} / {zipPaths.Length} mod(s)"
                             + (failed > 0 ? $" ({failed} failed)." : ".")
@@ -1007,7 +1008,8 @@ public class ModManagerSection : VBoxContainer
                                 {
                                     ModImporter.CleanupImportZip(zipPath);
                                     await ImportSequentially(zipPaths, idx + 1, imp, fail + 1);
-                                })
+                                }),
+                            okLabel: Loc.Tr("덮어쓰기", "OK")
                         );
                     })
                     .CallDeferred();

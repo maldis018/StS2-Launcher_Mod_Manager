@@ -17,7 +17,7 @@ namespace STS2Mobile.Launcher.Sections;
 // mods whose folder is still present but the subscription is gone.
 public class WorkshopSubscribedPane : VBoxContainer
 {
-    public event Action<string, Action, Action> ConfirmationRequested;
+    public event ConfirmHandler ConfirmationRequested;
 
     private static readonly Color InfoColor = Ui.TextSecondary;
     private static readonly Color WarnColor = Ui.Warn;
@@ -221,7 +221,8 @@ public class WorkshopSubscribedPane : VBoxContainer
                         BeginBusy(Loc.Tr("정리하는 중...", "Cleaning up…"));
                         _ = Task.Run(() => RemoveOrphansAsync(conn, plan));
                     },
-                    null
+                    null,
+                    okLabel: Loc.Tr("삭제", "OK")
                 )
             );
         }
@@ -487,7 +488,7 @@ public class WorkshopSubscribedPane : VBoxContainer
         {
             ConfirmationRequested?.Invoke(
                 Loc.Tr(
-                    $"'{entry.Id}' 모드의 최신 창작마당 버전이 있습니다. 지금 받을까요?\n(취소하면 다음 동기화 때 자동으로 업데이트됩니다.)",
+                    $"'{entry.Id}' 모드의 최신 창작마당 버전이 있습니다. 지금 받을까요?\n(지금 받지 않아도 다음 동기화 때 자동으로 업데이트됩니다.)",
                     $"A newer Workshop version of '{entry.Id}' is available. Download it now?\n(Later: it will auto-update on the next sync.)"
                 ),
                 () =>
@@ -496,7 +497,9 @@ public class WorkshopSubscribedPane : VBoxContainer
                     _queue?.Enqueue(updatedItem);
                     RunOnMain(RenderList);
                 },
-                null
+                null,
+                okLabel: Loc.Tr("받기", "OK"),
+                cancelLabel: Loc.Tr("나중에", "Cancel")
             );
         }
     }
@@ -610,7 +613,8 @@ public class WorkshopSubscribedPane : VBoxContainer
                 BeginBusy(Loc.Tr($"'{c.ModId}' 교체하는 중...", $"Switching '{c.ModId}'…"));
                 _ = Task.Run(() => DoUseWorkshopAsync(c));
             },
-            null
+            null,
+            okLabel: Loc.Tr("교체", "OK")
         );
     }
 
@@ -686,7 +690,9 @@ public class WorkshopSubscribedPane : VBoxContainer
                 BeginBusy(Loc.Tr($"'{entry.Id}' 구독을 취소하는 중...", $"Unsubscribing '{entry.Id}'…"));
                 _ = Task.Run(() => DoUnsubscribeAsync(entry));
             },
-            null
+            null,
+            okLabel: Loc.Tr("구독 취소", "OK"),
+            cancelLabel: Loc.Tr("닫기", "Cancel")
         );
 
     // Unsubscribe for an in-flight (not yet installed) subscription row.
@@ -718,7 +724,9 @@ public class WorkshopSubscribedPane : VBoxContainer
                     });
                 });
             },
-            null
+            null,
+            okLabel: Loc.Tr("구독 취소", "OK"),
+            cancelLabel: Loc.Tr("닫기", "Cancel")
         );
 
     // Detail for an in-flight subscription (Workshop metadata already in hand).

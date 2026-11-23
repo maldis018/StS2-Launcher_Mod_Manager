@@ -227,8 +227,8 @@ public class LauncherView
         // main two-column layout.
         _mainHbox = hbox;
         ModManager = new ModManagerSection(scale);
-        ModManager.ConfirmationRequested += (message, onOk, onCancel) =>
-            ShowConfirmation(message, onOk, onCancel);
+        ModManager.ConfirmationRequested += (message, onOk, onCancel, okLabel, cancelLabel) =>
+            ShowConfirmation(message, onOk, onCancel, okLabel, cancelLabel);
         _panel.Content.AddChild(ModManager);
     }
 

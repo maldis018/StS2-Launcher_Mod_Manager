@@ -13,7 +13,7 @@ namespace STS2Mobile.Launcher.Components;
 // ModDetailDialog modal, this is a real page with four tabs like the Steam
 // Community item page:
 //   설명   (Description)   — native: full description, thumbnail, stats, tags.
-//   업데이트 노트 (Change Notes) — native: PublishedFile.GetChangeHistory, lazy-loaded.
+//   변경 사항 (Change Notes): native: PublishedFile.GetChangeHistory, lazy-loaded.
 //   토론   (Discussions)   — Steam Community web feature; SteamKit2 has no RPC for
 //                            it, so this tab explains that and opens the browser.
 //   댓글   (Comments)      — shows the public comment count (the one datum the API
@@ -168,7 +168,7 @@ public class WorkshopDetailPage : ColorRect
         string[] labels =
         {
             Loc.Tr("설명", "DESCRIPTION"),
-            Loc.Tr("업데이트 노트", "CHANGE NOTES"),
+            Loc.Tr("변경 사항", "CHANGE NOTES"),
             Loc.Tr("토론", "DISCUSSIONS"),
             Loc.Tr("댓글", "COMMENTS"),
         };
@@ -289,7 +289,7 @@ public class WorkshopDetailPage : ColorRect
         scroll.AddChild(_notesList);
 
         _notesList.AddChild(
-            MakeInfoLabel(Loc.Tr("업데이트 노트를 불러오는 중...", "Loading change notes…"))
+            MakeInfoLabel(Loc.Tr("변경 사항을 불러오는 중...", "Loading change notes…"))
         );
         return scroll;
     }
@@ -646,7 +646,7 @@ public class WorkshopDetailPage : ColorRect
         if (changes == null || changes.Count == 0)
         {
             _notesList.AddChild(
-                MakeInfoLabel(Loc.Tr("업데이트 노트가 없습니다.", "No change notes."))
+                MakeInfoLabel(Loc.Tr("변경 사항이 없습니다.", "No change notes."))
             );
             return;
         }
@@ -691,7 +691,7 @@ public class WorkshopDetailPage : ColorRect
             c.QueueFree();
         _notesList.AddChild(
             MakeInfoLabel(
-                Loc.Tr("업데이트 노트를 불러오지 못했습니다.", "Couldn't load change notes.")
+                Loc.Tr("변경 사항을 불러오지 못했습니다.", "Couldn't load change notes.")
             )
         );
     }
