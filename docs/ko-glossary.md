@@ -16,7 +16,7 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | Confirmation dialog buttons | Answer the question with a specific verb where one reads better ("가져오기" / "나중에", "나가기" / "계속 다운로드", "덮어쓰기" / "취소"). Default pair is 확인 / 취소. Never 예 / 아니오 for the launcher's own dialogs. |
 | Toggle state | "켜짐" / "꺼짐" ("자동 동기화: 켜짐"). |
 | Device | 기기, never 디바이스 ("이 기기"). |
-| Numbers | Counters attach to the number: "3개", "2명", "5층". Sizes keep the Latin unit without a space: "9.9MB" (code uses `FormatSize`, which prints "9.9 MB" in the log-style English; the Korean half should not need it). |
+| Numbers | Counters attach to the number: "3개", "2명", "5층". Byte sizes keep the Latin unit with no space: "9.9MB". Use `Loc.Size(bytes)`, which drops the space in Korean only. Times read "2시간 5분". |
 | Spacing | Particles attach directly to the preceding word, including Latin words and numbers: "Steam에", "3개를", "Slay the Spire 2를". Choose the particle by how the word is read, not by its last letter (see below). Avoid "을(를)" fallbacks; reword if the particle is uncertain. |
 | Proper nouns | Latin script, unchanged: Steam, Slay the Spire 2, StS2 Launcher Redux, StS2 Launcher Mod, BaseLib, Steam Guard, GitHub, mod IDs, file and folder names, `mod_config.json`, `StS2LauncherMM`, `ModsDisabled`. |
 | Not localized | Log and console lines (`PatchHelper.Log`, `AppendLog`), exception text from Steam or the network (appended after a Korean prefix: "다운로드 실패: {message}"), file names, branch names (`public`, `public-beta`). |
@@ -120,7 +120,7 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 | TAGS | 태그 | | |
 | LOAD MORE | 더 보기 | | |
 | SUBSCRIBE / UNSUBSCRIBE | 구독 / 구독 취소 | cards, rows, detail | Steam Korean client wording. |
-| DETAIL | 상세 정보 | | Android standard. Short form 상세 is used where the button is narrow. |
+| DETAIL | 상세 | cards, rows, detail | The buttons are narrow, so the short form 상세 is used everywhere. Android's longer form is 상세 정보. |
 | DISABLE / ENABLE | 비활성화 / 활성화 | rows, detail | **Review.** The mod folder moves to `ModsDisabled/` (a "stash"), so it is not a delete. Alternatives: 끄기 / 켜기 (shorter, but implies the mod stays in place), 보관 / 복구. |
 | Disabled (badge) | 비활성 | | |
 | Installed / Update available / Subscribed (badges) | 설치됨 / 업데이트 있음 / 구독 중 | | |
@@ -139,3 +139,23 @@ The Korean was written by a non-native speaker, using the wording of Android, Sa
 |---|---|---|---|
 | JOIN | 참가 | LAN panel | Alternatives: 접속, 입장. 참가 is used for joining a game session. |
 | Enter host IP address | 호스트 IP 주소 입력 | LAN placeholder | |
+
+### Added while localizing the Mod Hub (review)
+
+| English | Korean | Where | Reason, alternatives |
+|---|---|---|---|
+| subscribers / rated | 구독자 N명 / 평점 N% | Workshop card | **Review.** Steam's own wording is "긍정적 평가 N%". |
+| Unmanaged, root files (badge) | 미관리 · 루트 파일 | LOCAL row | **Review.** Alternatives: 관리 안 됨, 미관리 only (shorter). |
+| USE WORKSHOP | 창작마당 버전 사용 | subscribed conflict row | **Review.** Alternatives: 창작마당 사용 (shorter), 창작마당으로 교체. |
+| manually installed | 수동 설치 | | Alternative: 직접 설치. |
+| Workshop item | 아이템 | | Steam Korean client wording. Alternative: 항목. |
+| by Author | 제작자: Author | | Alternative: 제작. |
+| Min game version / Path | 최소 게임 버전 / 경로 | detail | |
+| Update notes (detail tab) | 업데이트 노트 | detail page | Already used. Alternative: 변경 사항 (Steam wording, shorter). |
+| Back-press toast | 한 번 더 누르면 종료됩니다 | Android toast | |
+| (private) branch suffix | (비공개) | branch picker | |
+
+### Particle and unit notes for new strings
+
+- A version string such as `v0.5.1` is read "일", so it takes 이 / 은 / 을. Prefer wording that avoids a particle after it ("런처 v0.5.1 업데이트가 있습니다").
+- `Loc.Size` and `SaveProgressSummary.FormatSize` print "1.5MB" in Korean and "1.5 MB" in English.

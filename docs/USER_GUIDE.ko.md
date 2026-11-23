@@ -14,7 +14,7 @@ StS2 Launcher Redux는 비공식 팬 프로젝트이며 Mega Crit Games와 관�
 
 1. [APK 다운로드 + 설치](#1-apk-다운로드--설치)
 2. [첫 실행: 권한 부여](#2-첫-실행-권한-부여)
-- [StS2 Launcher Mod에서 옮겨오기](#sts2-launcher-mod-에서-옮겨오기)
+- [StS2 Launcher Mod에서 옮겨오기](#sts2-launcher-mod에서-옮겨오기)
 3. [Steam 로그인](#3-steam-로그인)
 4. [브랜치 선택 + 게임 다운로드](#4-브랜치-선택--게임-다운로드)
 5. [런처 메인 화면 한눈에 보기](#5-런처-메인-화면-한눈에-보기)
