@@ -116,6 +116,21 @@ public static class ModEntry
         // must be live before any mod runs.
         FmodEventGuardPatches.Apply(_harmony);
 
+        // The process booted on the bootstrap PCK (GodotApp.getCommandLine found no
+        // game PCK, e.g. a first install or an interrupted one): the game's scenes
+        // and startup never run, so the game patches would sit idle and nothing
+        // would ever show a launcher, even when sts2.dll and the other game DLLs
+        // are already on disk. Go straight to the standalone launcher instead of
+        // relying on the sts2.dll load failing below.
+        if (BootedOnBootstrapPck())
+        {
+            PatchHelper.Log(
+                "Booted on bootstrap PCK (no game PCK); skipping game patches"
+            );
+            ScheduleStandaloneLauncher();
+            return;
+        }
+
         // Game patches require sts2.dll; if missing, fall through to standalone launcher.
         try
         {
@@ -167,6 +182,27 @@ public static class ModEntry
         {
             PatchHelper.Log($"Game patches skipped (files not present): {ex.Message}");
             ScheduleStandaloneLauncher();
+        }
+    }
+
+    // Mirrors GodotApp.getCommandLine, which picks the bootstrap PCK exactly when
+    // files/game/SlayTheSpire2.pck does not exist. Same package-private path as
+    // the TMPDIR override in Apply(); no Godot API, so it is safe this early.
+    // Keep both sides on this one condition (the PCK is renamed into place only
+    // after a complete download, so existence means finished).
+    private const string GamePckPath =
+        "/data/user/0/com.game.sts2launcher.modmanager/files/game/SlayTheSpire2.pck";
+
+    private static bool BootedOnBootstrapPck()
+    {
+        try
+        {
+            return !File.Exists(GamePckPath);
+        }
+        catch
+        {
+            // Unreadable: Java's File.exists() would have said false too.
+            return true;
         }
     }
 
